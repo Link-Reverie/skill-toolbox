@@ -3,6 +3,7 @@
 import { Command } from 'commander';
 import { listCommand } from './commands/list';
 import { validateCommand } from './commands/validate';
+import { installCommand } from './commands/install';
 
 const program = new Command();
 
@@ -16,8 +17,7 @@ program
   .description('Install a skill from git repository or local path')
   .option('-d, --dir <directory>', 'Installation directory', './skills')
   .action(async (source: string, options) => {
-    console.log(`Installing skill from ${source}...`);
-    console.log('Install command coming in next task!');
+    await installCommand(source, options);
   });
 
 program
