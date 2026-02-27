@@ -2,6 +2,7 @@
 
 import { Command } from 'commander';
 import { listCommand } from './commands/list';
+import { validateCommand } from './commands/validate';
 
 const program = new Command();
 
@@ -30,9 +31,8 @@ program
 program
   .command('validate <path>')
   .description('Validate skill format')
-  .action((path: string) => {
-    console.log(`Validating ${path}...`);
-    console.log('Validate command coming in next task!');
+  .action(async (skillPath: string) => {
+    await validateCommand(skillPath);
   });
 
 program.parse();
