@@ -8,7 +8,9 @@
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
     "lint": "pnpm -r run lint",
-    "clean": "pnpm -r run clean"
+    "clean": "pnpm -r run clean",
+    "cli": "pnpm --filter @skill-toolbox/cli run dev",
+    "cli:build": "pnpm --filter @skill-toolbox/cli run build"
   },
   "keywords": ["skill", "claude", "agent", "toolbox", "monorepo"],
   "engines": {
