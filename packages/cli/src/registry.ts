@@ -1,6 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import { SkillParser } from '@skill-toolbox/core';
+import { metadataPlugin } from '@skill-toolbox/plugin-metadata';
 import type { Skill } from '@skill-toolbox/utils';
 
 export class SkillRegistry {
@@ -39,7 +40,7 @@ export class SkillRegistry {
     }
 
     const markdown = await fs.readFile(skillFile, 'utf-8');
-    const parser = new SkillParser();
+    const parser = new SkillParser().use(metadataPlugin());
     return parser.parse(markdown);
   }
 

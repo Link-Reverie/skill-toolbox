@@ -2,9 +2,10 @@ import chalk from 'chalk';
 import fs from 'fs-extra';
 import path from 'path';
 import { SkillParser } from '@skill-toolbox/core';
+import { metadataPlugin } from '@skill-toolbox/plugin-metadata';
 
 export async function validateCommand(skillPath: string) {
-  const parser = new SkillParser();
+  const parser = new SkillParser().use(metadataPlugin());
 
   try {
     const stat = await fs.stat(skillPath);
