@@ -1,0 +1,33 @@
+{
+  "name": "pnpm-workspace-template",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A modern pnpm workspace monorepo template",
+  "scripts": {
+    "dev": "pnpm -r run dev",
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
+    "lint": "pnpm -r run lint",
+    "clean": "pnpm -r run clean",
+    "type-check": "pnpm -r run type-check"
+  },
+  "keywords": [
+    "pnpm",
+    "monorepo",
+    "workspace",
+    "typescript"
+  ],
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "eslint": "^8.56.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "prettier": "^3.2.4"
+  },
+  "packageManager": "pnpm@8.15.0"
+}
