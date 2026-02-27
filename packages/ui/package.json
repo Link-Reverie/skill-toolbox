@@ -24,6 +24,6 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@workspace/utils": "workspace:*"
+    "@skill-toolbox/utils": "workspace:*"
   }
 }
