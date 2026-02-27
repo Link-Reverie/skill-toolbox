@@ -6,12 +6,10 @@ import type { ResolvedSource, GitSourceOptions } from './types';
 import { GitSourceError } from '@skill-toolbox/utils';
 
 export class GitSource {
-  private cacheDir: string;
   private timeout: number;
   private shallow: boolean;
 
   constructor(options?: GitSourceOptions) {
-    this.cacheDir = options?.cacheDir || path.join(os.homedir(), '.skill-toolbox', 'cache');
     this.timeout = options?.timeout || 60000;
     this.shallow = options?.shallow ?? true;
   }
