@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
+import { listCommand } from './commands/list';
 
 const program = new Command();
 
@@ -21,8 +22,9 @@ program
 program
   .command('list')
   .description('List installed skills')
-  .action(() => {
-    console.log('List command coming in next task!');
+  .option('-d, --dir <directory>', 'Skills directory', './skills')
+  .action(async (options) => {
+    await listCommand(options.dir);
   });
 
 program
