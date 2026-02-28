@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import chalk from 'chalk';
 import type { AgentConfig } from './config';
 import { SkillLoader } from './skills/loader';
 import { buildSystemPrompt } from './skills/prompt';
@@ -8,6 +9,11 @@ import { createWriteTool } from './tools/write';
 import { createBashTool } from './tools/bash';
 import { LLMClient, Message } from './llm/client';
 import type { Skill } from '@skill-toolbox/utils';
+import type { Tool } from './tools/types';
+
+// Constants
+const MAX_TOOL_RESULT_PREVIEW = 100;
+const MAX_CHAT_ITERATIONS = 50;
 
 export class Agent {
   private config: AgentConfig;
@@ -24,41 +30,88 @@ export class Agent {
     this.llmClient = new LLMClient(config.apiKey, config.model, config.maxTokens);
   }
 
+  /**
+   * Start the agent by loading skills, registering tools, and displaying startup message.
+   * Should be called once before using the agent.
+   */
   async start(): Promise<void> {
-    await this.loadSkills();
-    this.registerTools();
-    this.showStartupMessage();
+    try {
+      await this.loadSkills();
+      this.registerTools();
+      this.showStartupMessage();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red(`Failed to start agent: ${errorMessage}`));
+      throw error;
+    }
   }
 
+  /**
+   * Send a chat message to the agent and handle the response.
+   * Manages conversation history and tool execution automatically.
+   * @param userMessage - The message from the user
+   */
   async chat(userMessage: string): Promise<void> {
-    // Add user message to history
-    this.conversationHistory.push({
-      role: 'user',
-      content: userMessage,
-    });
+    // Validate input
+    if (!userMessage || userMessage.trim().length === 0) {
+      console.log(chalk.yellow('Please enter a non-empty message.'));
+      return;
+    }
 
-    // Build system prompt
-    const systemPrompt = buildSystemPrompt(this.skills);
+    try {
+      // Add user message to history
+      this.conversationHistory.push({
+        role: 'user',
+        content: userMessage,
+      });
 
-    // Get tool definitions
-    const tools = this.toolRegistry.getToolDefinitions();
+      // Build system prompt
+      const systemPrompt = buildSystemPrompt(this.skills);
 
-    // Start chat loop
-    await this.chatLoop(systemPrompt, tools);
+      // Get tool definitions
+      const tools = this.toolRegistry.getToolDefinitions();
+
+      // Start chat loop
+      await this.chatLoop(systemPrompt, tools);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red(`Chat error: ${errorMessage}`));
+
+      // Remove the failed user message from history
+      this.conversationHistory.pop();
+    }
   }
 
+  /**
+   * Get the map of loaded skills.
+   * @returns Map of skill name to Skill object
+   */
   getSkills(): Map<string, Skill> {
     return this.skills;
   }
 
+  /**
+   * Reload all skills from disk.
+   * Useful for updating skills without restarting the agent.
+   */
   async reloadSkills(): Promise<void> {
-    await this.loadSkills();
-    console.log('Skills reloaded successfully.');
+    try {
+      await this.loadSkills();
+      console.log(chalk.green('Skills reloaded successfully.'));
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red(`Failed to reload skills: ${errorMessage}`));
+      throw error;
+    }
   }
 
+  /**
+   * Clear the conversation history.
+   * Starts a fresh conversation without reloading skills.
+   */
   clearHistory(): void {
     this.conversationHistory = [];
-    console.log('Conversation history cleared.');
+    console.log(chalk.green('Conversation history cleared.'));
   }
 
   private async loadSkills(): Promise<void> {
@@ -85,31 +138,41 @@ export class Agent {
 
   private showStartupMessage(): void {
     console.log('');
-    console.log('╔═══════════════════════════════════════════════════════════╗');
-    console.log('║                 Skill-Toolbox Agent                      ║');
-    console.log('╚═══════════════════════════════════════════════════════════╝');
+    console.log(chalk.cyan('╔═══════════════════════════════════════════════════════════╗'));
+    console.log(chalk.cyan('║') + chalk.bold.white('                 Skill-Toolbox Agent                      ') + chalk.cyan('║'));
+    console.log(chalk.cyan('╚═══════════════════════════════════════════════════════════╝'));
     console.log('');
-    console.log(`Model: ${this.config.model}`);
-    console.log(`Skills loaded: ${this.skills.size}`);
+    console.log(`${chalk.blue('Model:')} ${this.config.model}`);
+    console.log(`${chalk.blue('Skills loaded:')} ${this.skills.size}`);
     console.log('');
     if (this.skills.size > 0) {
-      console.log('Available skills:');
+      console.log(chalk.bold('Available skills:'));
       for (const [name, skill] of this.skills) {
-        console.log(`  - ${name} (v${skill.metadata.version})`);
+        console.log(`  ${chalk.green('•')} ${name} ${chalk.gray(`(v${skill.metadata.version})`)}`);
       }
     } else {
-      console.log('No skills loaded.');
+      console.log(chalk.yellow('No skills loaded.'));
     }
     console.log('');
-    console.log('Type your message and press Enter to chat.');
-    console.log('Type /help to see available commands.');
+    console.log(chalk.gray('Type your message and press Enter to chat.'));
+    console.log(chalk.gray('Type /help to see available commands.'));
     console.log('');
   }
 
-  private async chatLoop(systemPrompt: string, tools: any[]): Promise<void> {
+  private async chatLoop(systemPrompt: string, tools: Tool[]): Promise<void> {
     let continueLoop = true;
+    let iterations = 0;
 
     while (continueLoop) {
+      // Safety guard against infinite loops
+      iterations++;
+      if (iterations > MAX_CHAT_ITERATIONS) {
+        console.error(
+          chalk.red(`Maximum iterations (${MAX_CHAT_ITERATIONS}) reached. Stopping to prevent infinite loop.`)
+        );
+        break;
+      }
+
       // Call LLM
       const response = await this.llmClient.chat(systemPrompt, this.conversationHistory, tools);
 
@@ -150,12 +213,14 @@ export class Agent {
 
         for (const toolUseBlock of toolUseBlocks) {
           try {
-            console.log(`[Tool: ${toolUseBlock.name}]`);
+            console.log(chalk.cyan(`[Tool: ${toolUseBlock.name}]`));
             const result = await this.toolRegistry.execute(
               toolUseBlock.name,
               toolUseBlock.input
             );
-            console.log(`[Result: ${result.substring(0, 100)}${result.length > 100 ? '...' : ''}]`);
+            const preview = result.substring(0, MAX_TOOL_RESULT_PREVIEW);
+            const ellipsis = result.length > MAX_TOOL_RESULT_PREVIEW ? '...' : '';
+            console.log(chalk.gray(`[Result: ${preview}${ellipsis}]`));
 
             toolResults.push({
               type: 'tool_result',
@@ -164,7 +229,7 @@ export class Agent {
             });
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
-            console.error(`[Error: ${errorMessage}]`);
+            console.error(chalk.red(`[Error: ${errorMessage}]`));
 
             toolResults.push({
               type: 'tool_result',
@@ -185,7 +250,7 @@ export class Agent {
         continueLoop = true;
       } else {
         // Unknown stop_reason
-        console.warn(`Unknown stop_reason: ${response.stop_reason}`);
+        console.warn(chalk.yellow(`Unknown stop_reason: ${response.stop_reason}`));
         continueLoop = false;
       }
     }
