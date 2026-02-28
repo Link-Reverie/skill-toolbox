@@ -16,112 +16,131 @@ export type CommandHandler = (
   context: CommandContext
 ) => Promise<void | string>;
 
-export const commands = {
-  async help(_args: string[], _context: CommandContext): Promise<void> {
-    console.log(chalk.bold('\nAvailable commands:\n'));
-    console.log('  /help              Show this help message');
-    console.log('  /skills            List loaded skills');
-    console.log('  /install <source>  Install skill from Git source');
-    console.log('  /reload            Reload all skills');
-    console.log('  /clear             Clear conversation history');
-    console.log('  /exit              Exit the agent\n');
+export const commands: Record<string, { description: string; handler: CommandHandler }> = {
+  help: {
+    description: 'Show available commands',
+    handler: async () => {
+      console.log(chalk.bold('\nAvailable Commands:\n'));
+      console.log('  /help              - Show this help message');
+      console.log('  /skills            - List loaded skills');
+      console.log('  /install <source>  - Install skill from Git source');
+      console.log('  /reload            - Reload all skills');
+      console.log('  /clear             - Clear conversation history');
+      console.log('  /exit              - Exit the agent\n');
+    },
   },
 
-  async skills(_args: string[], context: CommandContext): Promise<void> {
-    const { skills } = context;
+  skills: {
+    description: 'List loaded skills',
+    handler: async (_args, context) => {
+      const { skills } = context;
 
-    if (skills.size === 0) {
-      console.log(chalk.yellow('\nNo skills loaded.\n'));
-      return;
-    }
+      if (skills.size === 0) {
+        console.log(chalk.yellow('\nNo skills loaded.\n'));
+        return;
+      }
 
-    console.log(chalk.bold('\nLoaded skills:\n'));
-    for (const [name, skill] of skills) {
-      const version = skill.metadata.version || 'unknown';
-      const description = skill.metadata.description || 'No description';
-      console.log(`  ${chalk.cyan(name)} (${version})`);
-      console.log(`    ${description}`);
-    }
-    console.log();
+      console.log(chalk.bold('\nLoaded Skills:\n'));
+      let index = 1;
+      for (const [name, skill] of skills) {
+        const version = skill.metadata.version || 'unknown';
+        console.log(`  ${index}. ${chalk.cyan(name)}@${version}`);
+        index++;
+      }
+      console.log(chalk.dim(`\nTotal: ${skills.size} skill(s)\n`));
+    },
   },
 
-  async install(args: string[], context: CommandContext): Promise<void> {
-    const { skillsDir } = context;
-    const source = args[0];
+  install: {
+    description: 'Install skill from Git source',
+    handler: async (args, context) => {
+      const { skillsDir } = context;
+      const source = args[0];
 
-    if (!source) {
-      console.log(chalk.red('\nError: No source specified'));
-      console.log('Usage: /install <source>\n');
-      return;
-    }
-
-    console.log(chalk.cyan(`\nInstalling skill from ${source}...`));
-
-    const gitSource = new GitSource();
-    let tempDir: string | undefined;
-
-    try {
-      // Resolve the source
-      const resolved = await gitSource.resolve(source);
-      console.log(`Resolved to: ${resolved.url}`);
-
-      // Clone to temp directory
-      tempDir = await gitSource.clone(resolved.url);
-      console.log('Cloned successfully');
-
-      // Parse skill to get name
-      const skillFile = await findSkillFile(tempDir);
-      if (!skillFile) {
-        throw new Error('No skill file found in repository');
+      if (!source) {
+        console.log(chalk.red('\nError: No source specified'));
+        console.log('Usage: /install <source>\n');
+        return;
       }
 
-      const markdown = await fs.readFile(skillFile, 'utf-8');
-      const parser = new SkillParser().use(metadataPlugin());
-      const skill = await parser.parse(markdown);
+      console.log(chalk.cyan(`\nInstalling skill from ${source}...`));
 
-      if (!skill || !skill.metadata.name) {
-        throw new Error('Invalid skill: missing name');
-      }
+      const gitSource = new GitSource();
+      let tempDir: string | undefined;
 
-      const skillName = skill.metadata.name;
-      const targetDir = path.join(skillsDir, skillName);
+      try {
+        // Resolve the source
+        const resolved = await gitSource.resolve(source);
+        console.log(`Resolved to: ${resolved.url}`);
 
-      // Check if skill already exists
-      if (await fs.pathExists(targetDir)) {
-        console.log(chalk.yellow(`Skill "${skillName}" already exists, updating...`));
-        await fs.remove(targetDir);
-      }
+        // Clone to temp directory
+        tempDir = await gitSource.clone(resolved.url);
+        console.log('Cloned successfully');
 
-      // Copy to skills directory
-      await fs.copy(tempDir, targetDir);
-      console.log(chalk.green(`\n✓ Skill "${skillName}" installed successfully!\n`));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.log(chalk.red(`\nFailed to install skill: ${message}\n`));
-    } finally {
-      // Clean up temp directory
-      if (tempDir) {
-        try {
-          await fs.remove(tempDir);
-        } catch (error) {
-          // Ignore cleanup errors
+        // Parse skill to get name
+        const skillFile = await findSkillFile(tempDir);
+        if (!skillFile) {
+          throw new Error('No skill file found in repository');
+        }
+
+        const markdown = await fs.readFile(skillFile, 'utf-8');
+        const parser = new SkillParser().use(metadataPlugin());
+        const skill = await parser.parse(markdown);
+
+        if (!skill || !skill.metadata.name) {
+          throw new Error('Invalid skill: missing name');
+        }
+
+        const skillName = skill.metadata.name;
+        const targetDir = path.join(skillsDir, skillName);
+
+        // Check if skill already exists
+        if (await fs.pathExists(targetDir)) {
+          console.log(chalk.yellow(`Skill "${skillName}" already exists, updating...`));
+          await fs.remove(targetDir);
+        }
+
+        // Copy to skills directory
+        await fs.copy(tempDir, targetDir);
+        console.log(chalk.green(`\n✓ Skill "${skillName}" installed successfully!\n`));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.log(chalk.red(`\nFailed to install skill: ${message}\n`));
+      } finally {
+        // Clean up temp directory
+        if (tempDir) {
+          try {
+            await fs.remove(tempDir);
+          } catch (error) {
+            // Ignore cleanup errors
+          }
         }
       }
-    }
+    },
   },
 
-  async reload(_args: string[], _context: CommandContext): Promise<string> {
-    return 'reload';
+  reload: {
+    description: 'Reload all skills',
+    handler: async () => {
+      console.log(chalk.cyan('\nReloading skills...'));
+      return 'reload';
+    },
   },
 
-  async clear(_args: string[], _context: CommandContext): Promise<string> {
-    return 'clear';
+  clear: {
+    description: 'Clear conversation history',
+    handler: async () => {
+      return 'clear';
+    },
   },
 
-  async exit(_args: string[], _context: CommandContext): Promise<void> {
-    console.log(chalk.cyan('\nGoodbye!\n'));
-    process.exit(0);
-  }
+  exit: {
+    description: 'Exit the agent',
+    handler: async () => {
+      console.log(chalk.cyan('\nGoodbye! 👋\n'));
+      process.exit(0);
+    },
+  },
 };
 
 async function findSkillFile(dir: string): Promise<string | null> {
