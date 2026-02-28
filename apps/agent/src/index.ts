@@ -1,7 +1,7 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { loadConfig, type AgentConfig } from './config';
-import Agent from './agent';
+import { Agent } from './agent';
 import { commands, type CommandContext } from './repl/commands';
 
 /**
