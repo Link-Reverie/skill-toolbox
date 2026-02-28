@@ -1,4 +1,4 @@
-import inquirer from 'inquirer';
+import * as readline from 'readline';
 import chalk from 'chalk';
 import { loadConfig, type AgentConfig } from './config';
 import { Agent } from './agent';
@@ -39,70 +39,75 @@ async function replLoop(agent: Agent, config: AgentConfig): Promise<void> {
     skillsDir: config.skillsDir,
   };
 
-  // Main REPL loop
-  while (true) {
-    try {
-      // Get user input
-      const { input } = await inquirer.prompt([
-        {
-          type: 'input',
-          name: 'input',
-          message: chalk.cyan('You:'),
-          prefix: '',
-        },
-      ]);
+  // Create readline interface
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
 
-      // Trim and validate input
-      const trimmedInput = input.trim();
-      if (!trimmedInput) {
-        continue;
-      }
+  // Helper function to prompt for input
+  const prompt = (): void => {
+    rl.question(chalk.cyan('You: '), async (input: string) => {
+      try {
+        // Trim and validate input
+        const trimmedInput = input.trim();
+        if (!trimmedInput) {
+          prompt();
+          return;
+        }
 
-      // Check if input is a command
-      if (trimmedInput.startsWith('/')) {
-        // Parse command and arguments
-        const parts = trimmedInput.slice(1).split(/\s+/);
-        const commandName = parts[0];
-        const args = parts.slice(1);
+        // Check if input is a command
+        if (trimmedInput.startsWith('/')) {
+          // Parse command and arguments
+          const parts = trimmedInput.slice(1).split(/\s+/);
+          const commandName = parts[0];
+          const args = parts.slice(1);
 
-        // Look up command
-        const command = commands[commandName];
+          // Look up command
+          const command = commands[commandName];
 
-        if (command) {
-          // Execute command
-          const result = await command.handler(args, context);
+          if (command) {
+            // Execute command
+            const result = await command.handler(args, context);
 
-          // Handle special return values
-          if (result === 'reload') {
-            await agent.reloadSkills();
-            // Update context with new skills
-            context = {
-              skills: agent.getSkills(),
-              skillsDir: config.skillsDir,
-            };
-          } else if (result === 'clear') {
-            agent.clearHistory();
+            // Handle special return values
+            if (result === 'reload') {
+              await agent.reloadSkills();
+              // Update context with new skills
+              context = {
+                skills: agent.getSkills(),
+                skillsDir: config.skillsDir,
+              };
+            } else if (result === 'clear') {
+              agent.clearHistory();
+            }
+          } else {
+            console.log(chalk.red(`Unknown command: /${commandName}`));
+            console.log(chalk.gray('Type /help to see available commands.'));
           }
         } else {
-          console.log(chalk.red(`Unknown command: /${commandName}`));
-          console.log(chalk.gray('Type /help to see available commands.'));
+          // Send message to agent
+          await agent.chat(trimmedInput);
         }
-      } else {
-        // Send message to agent
-        await agent.chat(trimmedInput);
-      }
-    } catch (error) {
-      // Handle SIGINT (Ctrl+C) gracefully
-      if (error instanceof Error && error.message.includes('User force closed')) {
-        console.log(chalk.cyan('\nGoodbye! 👋\n'));
-        process.exit(0);
+      } catch (error) {
+        // Handle errors
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(chalk.red(`Error: ${errorMessage}`));
       }
 
-      // Handle other errors
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(chalk.red(`Error: ${errorMessage}`));
-    }
-  }
+      // Continue prompt loop
+      prompt();
+    });
+  };
+
+  // Start prompt loop
+  prompt();
+
+  // Handle graceful shutdown
+  rl.on('close', () => {
+    console.log(chalk.cyan('\nGoodbye! 👋\n'));
+    process.exit(0);
+  });
 }
 
 // Start the application
