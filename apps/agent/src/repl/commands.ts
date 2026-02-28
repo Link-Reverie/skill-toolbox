@@ -43,8 +43,10 @@ export const commands: Record<string, { description: string; handler: CommandHan
       console.log(chalk.bold('\nLoaded Skills:\n'));
       let index = 1;
       for (const [name, skill] of skills) {
-        const version = skill.metadata.version || 'unknown';
-        console.log(`  ${index}. ${chalk.cyan(name)}@${version}`);
+        console.log(chalk.green(`  ${index}. ${name}`) + chalk.gray(`@${skill.metadata.version}`));
+        if (skill.metadata.description) {
+          console.log(chalk.gray(`     ${skill.metadata.description}`));
+        }
         index++;
       }
       console.log(chalk.dim(`\nTotal: ${skills.size} skill(s)\n`));
@@ -58,9 +60,7 @@ export const commands: Record<string, { description: string; handler: CommandHan
       const source = args[0];
 
       if (!source) {
-        console.log(chalk.red('\nError: No source specified'));
-        console.log('Usage: /install <source>\n');
-        return;
+        return chalk.red('Error: Please specify a skill source');
       }
 
       console.log(chalk.cyan(`\nInstalling skill from ${source}...`));
@@ -116,6 +116,7 @@ export const commands: Record<string, { description: string; handler: CommandHan
           }
         }
       }
+      return;
     },
   },
 
@@ -123,6 +124,7 @@ export const commands: Record<string, { description: string; handler: CommandHan
     description: 'Reload all skills',
     handler: async () => {
       console.log(chalk.cyan('\nReloading skills...'));
+      // Note: Actual reload will be handled by Agent class
       return 'reload';
     },
   },
