@@ -4,8 +4,9 @@
   "description": "Skill-enhanced AI chat agent",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx src/index.ts",
     "start": "tsx src/index.ts",
+    "watch": "tsx watch src/index.ts",
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest"
