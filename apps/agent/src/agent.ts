@@ -173,85 +173,103 @@ export class Agent {
         break;
       }
 
-      // Call LLM
-      const response = await this.llmClient.chat(systemPrompt, this.conversationHistory, tools);
+      try {
+        // Call LLM
+        const response = await this.llmClient.chat(systemPrompt, this.conversationHistory, tools);
 
-      // Handle response based on stop_reason
-      if (response.stop_reason === 'end_turn') {
-        // Extract text content
-        const textBlocks = response.content.filter(
-          (block): block is Anthropic.TextBlock => block.type === 'text'
-        );
+        // Handle response based on stop_reason
+        if (response.stop_reason === 'end_turn') {
+          // Extract text content
+          const textBlocks = response.content.filter(
+            (block): block is Anthropic.TextBlock => block.type === 'text'
+          );
 
-        if (textBlocks.length > 0) {
-          const text = textBlocks.map((block) => block.text).join('');
-          console.log(`\n${text}\n`);
+          if (textBlocks.length > 0) {
+            const text = textBlocks.map((block) => block.text).join('');
+            console.log(`\n${text}\n`);
 
+            // Add assistant message to history
+            this.conversationHistory.push({
+              role: 'assistant',
+              content: response.content,
+            });
+          }
+
+          // End the loop
+          continueLoop = false;
+        } else if (response.stop_reason === 'tool_use') {
           // Add assistant message to history
           this.conversationHistory.push({
             role: 'assistant',
             content: response.content,
           });
-        }
 
-        // End the loop
-        continueLoop = false;
-      } else if (response.stop_reason === 'tool_use') {
-        // Add assistant message to history
-        this.conversationHistory.push({
-          role: 'assistant',
-          content: response.content,
-        });
+          // Extract tool use blocks
+          const toolUseBlocks = response.content.filter(
+            (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use'
+          );
 
-        // Extract tool use blocks
-        const toolUseBlocks = response.content.filter(
-          (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use'
-        );
+          // Execute tools and collect results
+          const toolResults: Anthropic.ToolResultBlockParam[] = [];
 
-        // Execute tools and collect results
-        const toolResults: Anthropic.ToolResultBlockParam[] = [];
+          for (const toolUseBlock of toolUseBlocks) {
+            try {
+              console.log(chalk.cyan(`[Tool: ${toolUseBlock.name}]`));
+              const result = await this.toolRegistry.execute(
+                toolUseBlock.name,
+                toolUseBlock.input
+              );
+              const preview = result.substring(0, MAX_TOOL_RESULT_PREVIEW);
+              const ellipsis = result.length > MAX_TOOL_RESULT_PREVIEW ? '...' : '';
+              console.log(chalk.gray(`[Result: ${preview}${ellipsis}]`));
 
-        for (const toolUseBlock of toolUseBlocks) {
-          try {
-            console.log(chalk.cyan(`[Tool: ${toolUseBlock.name}]`));
-            const result = await this.toolRegistry.execute(
-              toolUseBlock.name,
-              toolUseBlock.input
-            );
-            const preview = result.substring(0, MAX_TOOL_RESULT_PREVIEW);
-            const ellipsis = result.length > MAX_TOOL_RESULT_PREVIEW ? '...' : '';
-            console.log(chalk.gray(`[Result: ${preview}${ellipsis}]`));
+              toolResults.push({
+                type: 'tool_result',
+                tool_use_id: toolUseBlock.id,
+                content: result,
+              });
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              console.error(chalk.red(`[Error: ${errorMessage}]`));
 
-            toolResults.push({
-              type: 'tool_result',
-              tool_use_id: toolUseBlock.id,
-              content: result,
-            });
-          } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.error(chalk.red(`[Error: ${errorMessage}]`));
-
-            toolResults.push({
-              type: 'tool_result',
-              tool_use_id: toolUseBlock.id,
-              content: `Error: ${errorMessage}`,
-              is_error: true,
-            });
+              toolResults.push({
+                type: 'tool_result',
+                tool_use_id: toolUseBlock.id,
+                content: `Error: ${errorMessage}`,
+                is_error: true,
+              });
+            }
           }
+
+          // Add tool results to history
+          this.conversationHistory.push({
+            role: 'user',
+            content: toolResults,
+          });
+
+          // Continue the loop
+          continueLoop = true;
+        } else {
+          // Unknown stop_reason
+          console.warn(chalk.yellow(`Unknown stop_reason: ${response.stop_reason}`));
+          continueLoop = false;
+        }
+      } catch (error) {
+        // Handle API errors (authentication, rate limit, network, etc.)
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(chalk.red(`\nAPI Error: ${errorMessage}\n`));
+
+        // Provide helpful suggestions based on common errors
+        if (errorMessage.includes('401') || errorMessage.includes('authentication')) {
+          console.error(chalk.yellow('Tip: Check that your ANTHROPIC_API_KEY is valid in .env file'));
+        } else if (errorMessage.includes('429') || errorMessage.includes('rate limit')) {
+          console.error(chalk.yellow('Tip: Rate limit reached. Wait a moment before trying again.'));
+        } else if (errorMessage.includes('ENOTFOUND') || errorMessage.includes('network')) {
+          console.error(chalk.yellow('Tip: Network error. Check your internet connection.'));
         }
 
-        // Add tool results to history
-        this.conversationHistory.push({
-          role: 'user',
-          content: toolResults,
-        });
-
-        // Continue the loop
-        continueLoop = true;
-      } else {
-        // Unknown stop_reason
-        console.warn(chalk.yellow(`Unknown stop_reason: ${response.stop_reason}`));
-        continueLoop = false;
+        // End the loop on error
+        break;
       }
     }
   }
