@@ -5,7 +5,9 @@
       "Bash(pnpm test:*)",
       "Bash(pnpm build:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(npm test:*)",
+      "Bash(npm run:*)"
     ]
   }
 }
