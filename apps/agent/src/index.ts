@@ -1,4 +1,3 @@
-import * as readline from 'readline';
 import chalk from 'chalk';
 import { loadConfig, type AgentConfig } from './config';
 import { Agent } from './agent';
@@ -39,21 +38,62 @@ async function replLoop(agent: Agent, config: AgentConfig): Promise<void> {
     skillsDir: config.skillsDir,
   };
 
-  // Create readline interface
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  // Helper function to prompt for input (promisified)
+  // Helper function to prompt for input (using raw stdin/stdout)
   const prompt = (message: string): Promise<string> => {
     return new Promise((resolve) => {
-      rl.question(message, resolve);
+      process.stdout.write(message);
+
+      let input = '';
+
+      // Set stdin to raw mode for character-by-character input
+      process.stdin.setRawMode(true);
+      process.stdin.resume();
+      process.stdin.setEncoding('utf8');
+
+      const onData = (char: string) => {
+        // Handle Ctrl+C
+        if (char === '\u0003') {
+          console.log(chalk.cyan('\nGoodbye! 👋\n'));
+          process.exit(0);
+        }
+
+        // Handle Enter key
+        if (char === '\n' || char === '\r') {
+          process.stdin.setRawMode(false);
+          process.stdin.pause();
+          process.stdin.removeListener('data', onData);
+          console.log(); // New line after input
+          resolve(input);
+          return;
+        }
+
+        // Handle backspace
+        if (char === '\u007F' || char === '\b') {
+          if (input.length > 0) {
+            input = input.slice(0, -1);
+            process.stdout.clearLine(0);
+            process.stdout.cursorTo(0);
+            process.stdout.write(message + input);
+          }
+          return;
+        }
+
+        // Ignore other control characters
+        if (char.charCodeAt(0) < 32) {
+          return;
+        }
+
+        // Append character to input
+        input += char;
+        process.stdout.write(char);
+      };
+
+      process.stdin.on('data', onData);
     });
   };
 
   // Handle graceful shutdown
-  rl.on('close', () => {
+  process.on('SIGINT', () => {
     console.log(chalk.cyan('\nGoodbye! 👋\n'));
     process.exit(0);
   });
