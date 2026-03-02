@@ -1,6 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { createBashTool } from '../tools/bash';
-import type { Tool, ToolExecutor } from '../tools/types';
 
 describe('Bash Tool', () => {
   const defaultConfig = {

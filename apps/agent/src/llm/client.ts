@@ -3,7 +3,7 @@ import type { Tool } from '../tools/types';
 
 export interface Message {
   role: 'user' | 'assistant';
-  content: string | Anthropic.ContentBlock[];
+  content: string | Anthropic.ContentBlock[] | Anthropic.ToolResultBlockParam[];
 }
 
 export class LLMClient {
