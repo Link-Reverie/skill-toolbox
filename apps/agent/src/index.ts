@@ -1,3 +1,4 @@
+import * as readline from 'readline';
 import chalk from 'chalk';
 import { loadConfig, type AgentConfig } from './config';
 import { Agent } from './agent';
@@ -38,76 +39,30 @@ async function replLoop(agent: Agent, config: AgentConfig): Promise<void> {
     skillsDir: config.skillsDir,
   };
 
-  // Helper function to prompt for input (using raw stdin/stdout)
-  const prompt = (message: string): Promise<string> => {
-    return new Promise((resolve) => {
-      process.stdout.write(message);
-
-      let input = '';
-
-      // Set stdin to raw mode for character-by-character input
-      process.stdin.setRawMode(true);
-      process.stdin.resume();
-      process.stdin.setEncoding('utf8');
-
-      const onData = (char: string) => {
-        // Handle Ctrl+C
-        if (char === '\u0003') {
-          console.log(chalk.cyan('\nGoodbye! 👋\n'));
-          process.exit(0);
-        }
-
-        // Handle Enter key
-        if (char === '\n' || char === '\r') {
-          process.stdin.setRawMode(false);
-          process.stdin.pause();
-          process.stdin.removeListener('data', onData);
-          console.log(); // New line after input
-          resolve(input);
-          return;
-        }
-
-        // Handle backspace
-        if (char === '\u007F' || char === '\b') {
-          if (input.length > 0) {
-            input = input.slice(0, -1);
-            process.stdout.clearLine(0);
-            process.stdout.cursorTo(0);
-            process.stdout.write(message + input);
-          }
-          return;
-        }
-
-        // Ignore other control characters
-        if (char.charCodeAt(0) < 32) {
-          return;
-        }
-
-        // Append character to input
-        input += char;
-        process.stdout.write(char);
-      };
-
-      process.stdin.on('data', onData);
-    });
-  };
+  // Create readline interface (only once)
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    prompt: chalk.cyan('You: '),
+  });
 
   // Handle graceful shutdown
-  process.on('SIGINT', () => {
+  rl.on('close', () => {
     console.log(chalk.cyan('\nGoodbye! 👋\n'));
     process.exit(0);
   });
 
-  // Main REPL loop
-  while (true) {
-    try {
-      // Get user input
-      const input = await prompt(chalk.cyan('You: '));
+  // Show initial prompt
+  rl.prompt();
 
+  // Handle each line of input
+  rl.on('line', async (input: string) => {
+    try {
       // Trim and validate input
       const trimmedInput = input.trim();
       if (!trimmedInput) {
-        continue;
+        rl.prompt();
+        return;
       }
 
       // Check if input is a command
@@ -147,11 +102,11 @@ async function replLoop(agent: Agent, config: AgentConfig): Promise<void> {
       // Handle errors
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(chalk.red(`Error: ${errorMessage}`));
-
-      // Don't exit on error, continue the loop
-      // This prevents the app from crashing and keeps the REPL running
     }
-  }
+
+    // Always show prompt again after processing
+    rl.prompt();
+  });
 }
 
 // Start the application
