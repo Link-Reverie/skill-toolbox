@@ -166,18 +166,18 @@ Skills run in isolated contexts with:
 
 ## Configuration Options
 
+All configuration is done through environment variables in the `.env` file:
+
 | Environment Variable | Required | Default | Description |
 |---------------------|----------|---------|-------------|
-| `API_KEY` | Yes | - | API key for AI provider |
-| `API_BASE_URL` | No | `https://api.openai.com/v1` | Base URL for API |
-| `MODEL` | No | `gpt-4` | Model to use |
-| `TEMPERATURE` | No | `0.7` | Response temperature |
-| `MAX_TOKENS` | No | `2000` | Max tokens in response |
-| `SYSTEM_PROMPT` | No | Built-in | Custom system prompt |
-| `SANDBOX_ENABLED` | No | `true` | Enable sandbox restrictions |
-| `WHITELIST_COMMANDS` | No | See above | Comma-separated whitelisted commands |
-| `SKILLS_DIR` | No | `./skills` | Directory for skills |
-| `LOG_LEVEL` | No | `info` | Logging level (debug, info, warn, error) |
+| `ANTHROPIC_API_KEY` | Yes | - | Anthropic API key |
+| `ANTHROPIC_BASE_URL` | No | - | Custom API base URL (for proxies or custom endpoints) |
+| `ANTHROPIC_MODEL` | No | `claude-sonnet-4-6` | Claude model to use |
+| `ANTHROPIC_MAX_TOKENS` | No | `4096` | Maximum tokens in response |
+| `SKILLS_DIR` | No | `./skills` | Directory for storing skills |
+| `SANDBOX_TIMEOUT` | No | `30000` | Tool execution timeout (ms) |
+| `SANDBOX_MAX_MEMORY` | No | `512MB` | Maximum memory for tool execution |
+| `ALLOWED_COMMANDS` | No | `ls,cat,echo,node,npm,pnpm` | Comma-separated whitelisted bash commands |
 
 ## Development
 

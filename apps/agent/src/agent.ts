@@ -27,7 +27,12 @@ export class Agent {
     this.skills = new Map();
     this.conversationHistory = [];
     this.toolRegistry = new ToolRegistry();
-    this.llmClient = new LLMClient(config.apiKey, config.model, config.maxTokens);
+    this.llmClient = new LLMClient(
+      config.apiKey,
+      config.model,
+      config.maxTokens,
+      config.baseURL
+    );
   }
 
   /**

@@ -11,8 +11,11 @@ export class LLMClient {
   private model: string;
   private maxTokens: number;
 
-  constructor(apiKey: string, model: string, maxTokens: number) {
-    this.client = new Anthropic({ apiKey });
+  constructor(apiKey: string, model: string, maxTokens: number, baseURL?: string) {
+    this.client = new Anthropic({
+      apiKey,
+      baseURL: baseURL,
+    });
     this.model = model;
     this.maxTokens = maxTokens;
   }

@@ -2,6 +2,7 @@ import 'dotenv/config';
 
 export interface AgentConfig {
   apiKey: string;
+  baseURL?: string;
   model: string;
   maxTokens: number;
   skillsDir: string;
@@ -21,6 +22,7 @@ export function loadConfig(): AgentConfig {
 
   return {
     apiKey,
+    baseURL: process.env.ANTHROPIC_BASE_URL || undefined,
     model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
     maxTokens: parseInt(process.env.ANTHROPIC_MAX_TOKENS || '4096', 10),
     skillsDir: process.env.SKILLS_DIR || './skills',
