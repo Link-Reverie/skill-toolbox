@@ -38,6 +38,9 @@ importers:
       '@skill-toolbox/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@skill-toolbox/filesystem-source':
+        specifier: workspace:*
+        version: link:../../packages/filesystem-source
       '@skill-toolbox/git-source':
         specifier: workspace:*
         version: link:../../packages/git-source
@@ -93,6 +96,9 @@ importers:
       '@skill-toolbox/core':
         specifier: workspace:*
         version: link:../core
+      '@skill-toolbox/filesystem-source':
+        specifier: workspace:*
+        version: link:../filesystem-source
       '@skill-toolbox/git-source':
         specifier: workspace:*
         version: link:../git-source
@@ -134,6 +140,25 @@ importers:
         specifier: ^12.0.0
         version: 12.0.2
     devDependencies:
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(tsx@4.21.0)(typescript@5.9.3)
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.35)
+
+  packages/filesystem-source:
+    dependencies:
+      '@skill-toolbox/utils':
+        specifier: workspace:*
+        version: link:../utils
+      fs-extra:
+        specifier: ^11.2.0
+        version: 11.3.3
+    devDependencies:
+      '@types/fs-extra':
+        specifier: ^11.0.4
+        version: 11.0.4
       tsup:
         specifier: ^8.0.0
         version: 8.5.1(tsx@4.21.0)(typescript@5.9.3)
@@ -184,10 +209,16 @@ importers:
 
   packages/utils:
     dependencies:
+      fs-extra:
+        specifier: ^11.2.0
+        version: 11.3.3
       marked:
         specifier: ^17.0.3
         version: 17.0.3
     devDependencies:
+      '@types/fs-extra':
+        specifier: ^11.0.4
+        version: 11.0.4
       '@types/marked':
         specifier: ^6.0.0
         version: 6.0.0

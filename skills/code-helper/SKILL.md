@@ -1,12 +1,14 @@
 ---
 name: code-helper
-version: 1.0.0
 description: A simple code review and improvement assistant
-author: Skill Toolbox Team
-tags:
-  - code-review
-  - programming
-  - best-practices
+license: MIT
+metadata:
+  author: Skill Toolbox Team
+  version: "1.0.0"
+  tags:
+    - code-review
+    - programming
+    - best-practices
 ---
 
 # Code Helper Skill
