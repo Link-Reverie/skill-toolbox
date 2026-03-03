@@ -1,17 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import path from 'path';
 import fs from 'fs-extra';
 import os from 'os';
 import { GitSource } from '../GitSource';
 
 describe('GitSource', () => {
-  let source: GitSource;
-  let tempDirs: string[];
-
-  beforeEach(() => {
-    source = new GitSource();
-    tempDirs = [];
-  });
+  let tempDirs: string[] = [];
 
   afterEach(async () => {
     // Clean up any temp directories
@@ -20,192 +14,169 @@ describe('GitSource', () => {
         await fs.remove(dir);
       }
     }
+    tempDirs = [];
   });
 
-  describe('canHandle', () => {
-    it('should handle github shorthand', async () => {
-      expect(await source.canHandle('github:user/repo')).toBe(true);
-    });
-
-    it('should handle user/repo format', async () => {
-      expect(await source.canHandle('user/repo')).toBe(true);
-    });
-
-    it('should handle user/repo:path format', async () => {
-      expect(await source.canHandle('user/repo:docs/skills')).toBe(true);
-    });
-
-    it('should handle full git URL', async () => {
-      expect(await source.canHandle('https://github.com/user/repo.git')).toBe(true);
-    });
-
-    it('should not handle invalid formats', async () => {
-      expect(await source.canHandle('invalid-format')).toBe(false);
-    });
-  });
-
-  describe('resolve', () => {
-    it('should resolve github shorthand', async () => {
-      const result = await source.resolve('github:user/repo');
-
-      expect(result.type).toBe('git');
-      expect(result.source).toBe('github:user/repo');
-      expect(result.resolved).toBe('https://github.com/user/repo.git');
-      expect(result.multiSkill).toBe(true);
-      expect(result.skillPath).toBe('skills');
-    });
-
-    it('should resolve user/repo format', async () => {
-      const result = await source.resolve('user/repo');
-
-      expect(result.resolved).toBe('https://github.com/user/repo.git');
-      expect(result.skillPath).toBe('skills');
-    });
-
-    it('should resolve user/repo:path format', async () => {
-      const result = await source.resolve('user/repo:docs/skills');
-
-      expect(result.resolved).toBe('https://github.com/user/repo.git');
-      expect(result.skillPath).toBe('docs/skills');
-    });
-
-    it('should resolve full git URL', async () => {
-      const result = await source.resolve('https://github.com/user/repo.git');
-
-      expect(result.resolved).toBe('https://github.com/user/repo.git');
-    });
-
-    it('should throw error for invalid format', async () => {
-      await expect(source.resolve('invalid-format'))
-        .rejects.toThrow('Invalid source format');
-    });
-  });
-
-  describe('security', () => {
-    it('should reject path traversal in skillPath', async () => {
-      // Use a valid source format but with traversal in skillPath
-      // The regex allows alphanumeric, slashes, and dashes
-      const meta = {
-        type: 'git' as const,
+  describe('constructor', () => {
+    it('should create instance with required options', () => {
+      const source = new GitSource({
         source: 'user/repo',
-        resolved: 'https://github.com/user/repo.git',
-        multiSkill: true,
-        skillPath: '../../etc',  // Manually set skillPath with traversal
-      };
-
-      // Create a mock directory
-      const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'skill-test-'));
-      tempDirs.push(tempDir);
-
-      await expect(source.discover(tempDir, meta))
-        .rejects.toThrow('path traversal not allowed');
+      });
+      expect(source).toBeDefined();
     });
 
-    it('should reject absolute path in skillPath', async () => {
-      // Use a valid source format but with absolute path in skillPath
-      const meta = {
-        type: 'git' as const,
+    it('should create instance with all options', () => {
+      const source = new GitSource({
         source: 'user/repo',
-        resolved: 'https://github.com/user/repo.git',
-        multiSkill: true,
-        skillPath: '/etc/passwd',  // Manually set skillPath with absolute path
-      };
+        skillPath: 'docs/skills',
+        name: 'custom-name',
+        category: 'local',
+        timeout: 30000,
+        shallow: true,
+      });
+      expect(source).toBeDefined();
+    });
 
-      // Create a mock directory
-      const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'skill-test-'));
-      tempDirs.push(tempDir);
+    it('should default skillPath to empty string', () => {
+      const source = new GitSource({
+        source: 'user/repo',
+      });
+      // Access private property for testing
+      expect((source as any).skillPath).toBe('');
+    });
 
-      await expect(source.discover(tempDir, meta))
-        .rejects.toThrow('absolute paths not allowed');
+    it('should default category to git', () => {
+      const source = new GitSource({
+        source: 'user/repo',
+      });
+      const info = source.getSourceInfo();
+      expect(info.category).toBe('git');
     });
   });
 
-  describe('fetch', () => {
-    it('should clone repository to temp directory', async () => {
-      const meta = await source.resolve('github:octocat/Hello-World');
-      const localPath = await source.fetch(meta);
+  describe('getSourceInfo', () => {
+    it('should return source info with git type', () => {
+      const source = new GitSource({
+        source: 'user/repo',
+        name: 'test-source',
+      });
 
-      tempDirs.push(localPath);
+      const info = source.getSourceInfo();
 
-      // Verify directory exists
-      expect(await fs.pathExists(localPath)).toBe(true);
+      expect(info.type).toBe('git');
+      expect(info.category).toBe('git');
+      expect(info.identifier).toBe('test-source');
+      // path is only available after load()
+    });
 
-      // Verify it contains .git directory
-      expect(await fs.pathExists(path.join(localPath, '.git'))).toBe(true);
+    it('should use source as identifier if name not provided', () => {
+      const source = new GitSource({
+        source: 'user/repo',
+      });
+
+      const info = source.getSourceInfo();
+
+      expect(info.identifier).toBe('user/repo');
+    });
+
+    it('should allow category override', () => {
+      const source = new GitSource({
+        source: 'user/repo',
+        category: 'local',
+      });
+
+      const info = source.getSourceInfo();
+
+      expect(info.category).toBe('local');
+    });
+  });
+
+  describe('load', () => {
+    it('should load skills from a real git repository', async () => {
+      const source = new GitSource({
+        source: 'github:octocat/Hello-World',
+      });
+
+      const result = await source.load();
+      if (result.skills.length > 0) {
+        tempDirs.push(result.skills[0].directory);
+      }
+
+      // Should have loaded some content (even if no skills found, shouldn't error)
+      expect(result).toBeDefined();
+      expect(result.skills).toBeDefined();
+      expect(result.errors).toBeDefined();
+      // Should have info with path after load
+      expect(result.info.path).toBeDefined();
+      expect(result.info.path.length).toBeGreaterThan(0);
 
       // Cleanup
-      await source.cleanup(localPath, meta);
-    }, 30000);
+      await source.cleanup();
+    }, 60000);
 
-    it('should use cached repository if exists', async () => {
+    it('should handle cache directory option', async () => {
       const cacheDir = await fs.mkdtemp(path.join(os.tmpdir(), 'test-cache-'));
       tempDirs.push(cacheDir);
 
-      const meta = await source.resolve('github:octocat/Hello-World');
+      const source = new GitSource({
+        source: 'github:octocat/Hello-World',
+        cacheDir,
+      });
 
-      // First fetch
-      const path1 = await source.fetch(meta, { cacheDir });
-      tempDirs.push(path1);
+      const result = await source.load();
 
-      // Second fetch should return same path
-      const path2 = await source.fetch(meta, { cacheDir });
+      // Should not have errors
+      expect(result.errors.length).toBe(0);
 
-      expect(path1).toBe(path2);
-      expect(await fs.pathExists(path1)).toBe(true);
-    }, 30000);
+      // Cleanup
+      await source.cleanup();
+    }, 60000);
+
+    it('should return info with correct values after load', async () => {
+      const source = new GitSource({
+        source: 'github:octocat/Hello-World',
+        name: 'test-repo',
+        category: 'git',
+      });
+
+      const result = await source.load();
+      if (result.skills.length > 0) {
+        tempDirs.push(result.skills[0].directory);
+      }
+
+      expect(result.info.type).toBe('git');
+      expect(result.info.identifier).toBe('test-repo');
+      expect(result.info.category).toBe('git');
+      expect(result.info.path).toBeDefined();
+
+      // Cleanup
+      await source.cleanup();
+    }, 60000);
   });
 
-  describe('discover', () => {
-    it('should discover single skill in root directory', async () => {
-      // Create a mock skill directory
-      const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'skill-test-'));
-      tempDirs.push(tempDir);
+  describe('cleanup', () => {
+    it('should cleanup temp resources', async () => {
+      const source = new GitSource({
+        source: 'github:octocat/Hello-World',
+      });
 
-      await fs.writeFile(path.join(tempDir, 'SKILL.md'), '# Test Skill\n---\nname: test-skill\nversion: 1.0.0\n---');
+      await source.load();
 
-      const meta = {
-        type: 'git' as const,
-        source: 'test/repo',
-        resolved: tempDir,
-        multiSkill: true,
-        skillPath: 'skills',
-      };
+      // Should not throw
+      await expect(source.cleanup()).resolves.not.toThrow();
+    }, 60000);
+  });
 
-      const skills = await source.discover(tempDir, meta);
+  describe('security', () => {
+    it('should reject invalid source format', async () => {
+      const source = new GitSource({
+        source: 'invalid-format',
+      });
 
-      expect(skills).toHaveLength(1);
-      expect(skills[0].name).toBe(path.basename(tempDir));
-    });
+      const result = await source.load();
 
-    it('should discover multiple skills in skills directory', async () => {
-      const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'skill-test-'));
-      tempDirs.push(tempDir);
-
-      // Create skills directory with multiple skills
-      const skillsDir = path.join(tempDir, 'skills');
-      await fs.ensureDir(skillsDir);
-
-      const skill1Dir = path.join(skillsDir, 'skill1');
-      const skill2Dir = path.join(skillsDir, 'skill2');
-
-      await fs.ensureDir(skill1Dir);
-      await fs.ensureDir(skill2Dir);
-
-      await fs.writeFile(path.join(skill1Dir, 'SKILL.md'), '# Skill 1\n---\nname: skill1\nversion: 1.0.0\n---');
-      await fs.writeFile(path.join(skill2Dir, 'SKILL.md'), '# Skill 2\n---\nname: skill2\nversion: 1.0.0\n---');
-
-      const meta = {
-        type: 'git' as const,
-        source: 'test/repo',
-        resolved: tempDir,
-        multiSkill: true,
-        skillPath: 'skills',
-      };
-
-      const skills = await source.discover(tempDir, meta);
-
-      expect(skills).toHaveLength(2);
-      expect(skills.map(s => s.name).sort()).toEqual(['skill1', 'skill2']);
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0].error.message).toContain('Invalid');
     });
   });
 });

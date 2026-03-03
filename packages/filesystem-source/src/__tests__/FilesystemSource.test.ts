@@ -9,7 +9,6 @@ describe('FilesystemSource', () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    source = new FilesystemSource();
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'filesystem-source-test-'));
   });
 
@@ -17,110 +16,228 @@ describe('FilesystemSource', () => {
     await fs.remove(tempDir);
   });
 
-  describe('canHandle', () => {
-    it('should handle absolute paths that exist', async () => {
-      const testFile = path.join(tempDir, 'test.txt');
-      await fs.writeFile(testFile, 'test');
-
-      const result = await source.canHandle(testFile);
-      expect(result).toBe(true);
+  describe('constructor', () => {
+    it('should create instance with required options', () => {
+      source = new FilesystemSource({
+        path: tempDir,
+      });
+      expect(source).toBeDefined();
     });
 
-    it('should not handle paths that do not exist', async () => {
-      const result = await source.canHandle('/nonexistent/path');
-      expect(result).toBe(false);
+    it('should create instance with name option', () => {
+      source = new FilesystemSource({
+        path: tempDir,
+        name: 'custom-name',
+      });
+      expect(source).toBeDefined();
     });
 
-    it('should handle relative paths with cwd', async () => {
-      const sourceWithCwd = new FilesystemSource({ cwd: tempDir });
-      const testFile = 'test.txt';
-      await fs.writeFile(path.join(tempDir, testFile), 'test');
-
-      const result = await sourceWithCwd.canHandle(testFile);
-      expect(result).toBe(true);
-    });
-  });
-
-  describe('resolve', () => {
-    it('should resolve absolute paths', async () => {
-      const testDir = path.join(tempDir, 'skill-dir');
-      await fs.ensureDir(testDir);
-
-      const meta = await source.resolve(testDir);
-
-      expect(meta.type).toBe('filesystem');
-      expect(meta.source).toBe(testDir);
-      expect(meta.resolved).toBe(testDir);
-      expect(meta.multiSkill).toBe(true);
-    });
-
-    it('should resolve relative paths with cwd', async () => {
-      const sourceWithCwd = new FilesystemSource({ cwd: tempDir });
-      const testDir = 'skill-dir';
-      await fs.ensureDir(path.join(tempDir, testDir));
-
-      const meta = await sourceWithCwd.resolve(testDir);
-
-      expect(meta.resolved).toBe(path.join(tempDir, testDir));
-    });
-
-    it('should throw for non-existent paths', async () => {
-      await expect(source.resolve('/nonexistent')).rejects.toThrow();
+    it('should create instance with category option', () => {
+      source = new FilesystemSource({
+        path: tempDir,
+        name: 'my-source',
+        category: 'global',
+      });
+      expect(source).toBeDefined();
     });
   });
 
-  describe('fetch', () => {
-    it('should return resolved path', async () => {
-      const testDir = path.join(tempDir, 'skill-dir');
-      await fs.ensureDir(testDir);
+  describe('getSourceInfo', () => {
+    it('should return source info with filesystem type', () => {
+      source = new FilesystemSource({
+        path: tempDir,
+        name: 'test-source',
+      });
 
-      const meta = await source.resolve(testDir);
-      const result = await source.fetch(meta);
+      const info = source.getSourceInfo();
 
-      expect(result).toBe(testDir);
+      expect(info.type).toBe('filesystem');
+      expect(info.identifier).toBe('test-source');
+      // path is only available after load()
+    });
+
+    it('should use directory name as identifier if name not provided', () => {
+      source = new FilesystemSource({
+        path: tempDir,
+      });
+
+      const info = source.getSourceInfo();
+
+      expect(info.identifier).toBe(path.basename(tempDir));
+    });
+
+    it('should infer global category when name is global', () => {
+      source = new FilesystemSource({
+        path: tempDir,
+        name: 'global',
+      });
+
+      const info = source.getSourceInfo();
+
+      expect(info.category).toBe('global');
+    });
+
+    it('should infer local category when name is not global', () => {
+      source = new FilesystemSource({
+        path: tempDir,
+        name: 'my-skills',
+      });
+
+      const info = source.getSourceInfo();
+
+      expect(info.category).toBe('local');
+    });
+
+    it('should allow category override', () => {
+      source = new FilesystemSource({
+        path: tempDir,
+        name: 'global',
+        category: 'local',
+      });
+
+      const info = source.getSourceInfo();
+
+      expect(info.category).toBe('local');
     });
   });
 
-  describe('discover', () => {
-    it('should discover single skill in directory', async () => {
+  describe('load', () => {
+    it('should return error for non-existent path', async () => {
+      source = new FilesystemSource({
+        path: '/nonexistent/path',
+      });
+
+      const result = await source.load();
+
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0].error.message).toContain('does not exist');
+    });
+
+    it('should load single skill from directory with SKILL.md', async () => {
+      // Create a skill directory
       const skillDir = path.join(tempDir, 'my-skill');
       await fs.ensureDir(skillDir);
-      await fs.writeFile(path.join(skillDir, 'SKILL.md'), '# My Skill');
+      await fs.writeFile(
+        path.join(skillDir, 'SKILL.md'),
+        '---\nname: my-skill\nversion: 1.0.0\n---\n# My Skill'
+      );
 
-      const meta = await source.resolve(skillDir);
-      const skills = await source.discover(skillDir, meta);
+      source = new FilesystemSource({
+        path: skillDir,
+      });
 
-      expect(skills).toHaveLength(1);
-      expect(skills[0].name).toBe('my-skill');
-      expect(skills[0].path).toBe(path.join(skillDir, 'SKILL.md'));
+      const result = await source.load();
+
+      expect(result.skills.length).toBe(1);
+      expect(result.skills[0].baseName).toBe('my-skill');
+      expect(result.skills[0].source).toBe('my-skill');
+      expect(result.errors.length).toBe(0);
     });
 
-    it('should discover multiple skills in parent directory', async () => {
-      const skillsDir = path.join(tempDir, 'skills');
-      const skill1Dir = path.join(skillsDir, 'skill1');
-      const skill2Dir = path.join(skillsDir, 'skill2');
+    it('should load multiple skills from parent directory', async () => {
+      // Create multiple skill directories
+      const skill1Dir = path.join(tempDir, 'skill1');
+      const skill2Dir = path.join(tempDir, 'skill2');
 
       await fs.ensureDir(skill1Dir);
       await fs.ensureDir(skill2Dir);
-      await fs.writeFile(path.join(skill1Dir, 'SKILL.md'), '# Skill 1');
-      await fs.writeFile(path.join(skill2Dir, 'SKILL.md'), '# Skill 2');
 
-      const meta = await source.resolve(skillsDir);
-      const skills = await source.discover(skillsDir, meta);
+      await fs.writeFile(
+        path.join(skill1Dir, 'SKILL.md'),
+        '---\nname: skill1\nversion: 1.0.0\n---\n# Skill 1'
+      );
+      await fs.writeFile(
+        path.join(skill2Dir, 'SKILL.md'),
+        '---\nname: skill2\nversion: 1.0.0\n---\n# Skill 2'
+      );
 
-      expect(skills).toHaveLength(2);
-      expect(skills.map(s => s.name).sort()).toEqual(['skill1', 'skill2']);
+      source = new FilesystemSource({
+        path: tempDir,
+      });
+
+      const result = await source.load();
+
+      expect(result.skills.length).toBe(2);
+      expect(result.skills.map(s => s.baseName).sort()).toEqual(['skill1', 'skill2']);
+      expect(result.errors.length).toBe(0);
     });
 
-    it('should handle skill file directly', async () => {
-      const skillFile = path.join(tempDir, 'SKILL.md');
-      await fs.writeFile(skillFile, '# My Skill');
+    it('should load skill from README.md', async () => {
+      const skillDir = path.join(tempDir, 'readme-skill');
+      await fs.ensureDir(skillDir);
+      await fs.writeFile(
+        path.join(skillDir, 'README.md'),
+        '---\nname: readme-skill\nversion: 1.0.0\n---\n# README Skill'
+      );
 
-      const meta = await source.resolve(skillFile);
-      const skills = await source.discover(skillFile, meta);
+      source = new FilesystemSource({
+        path: skillDir,
+      });
 
-      expect(skills).toHaveLength(1);
-      expect(skills[0].path).toBe(skillFile);
+      const result = await source.load();
+
+      expect(result.skills.length).toBe(1);
+      expect(result.skills[0].baseName).toBe('readme-skill');
+    });
+
+    it('should skip hidden directories', async () => {
+      // Create visible and hidden skill directories
+      const visibleDir = path.join(tempDir, 'visible-skill');
+      const hiddenDir = path.join(tempDir, '.hidden-skill');
+
+      await fs.ensureDir(visibleDir);
+      await fs.ensureDir(hiddenDir);
+
+      await fs.writeFile(
+        path.join(visibleDir, 'SKILL.md'),
+        '---\nname: visible\nversion: 1.0.0\n---\n# Visible'
+      );
+      await fs.writeFile(
+        path.join(hiddenDir, 'SKILL.md'),
+        '---\nname: hidden\nversion: 1.0.0\n---\n# Hidden'
+      );
+
+      source = new FilesystemSource({
+        path: tempDir,
+      });
+
+      const result = await source.load();
+
+      expect(result.skills.length).toBe(1);
+      expect(result.skills[0].baseName).toBe('visible-skill');
+    });
+
+    it('should return info with path after load', async () => {
+      // Create a skill directory
+      const skillDir = path.join(tempDir, 'my-skill');
+      await fs.ensureDir(skillDir);
+      await fs.writeFile(
+        path.join(skillDir, 'SKILL.md'),
+        '---\nname: my-skill\nversion: 1.0.0\n---\n# My Skill'
+      );
+
+      source = new FilesystemSource({
+        path: skillDir,
+        name: 'test-source',
+        category: 'local',
+      });
+
+      const result = await source.load();
+
+      expect(result.info.type).toBe('filesystem');
+      expect(result.info.identifier).toBe('test-source');
+      expect(result.info.category).toBe('local');
+      expect(result.info.path).toBe(skillDir);
+    });
+  });
+
+  describe('cleanup', () => {
+    it('should not throw on cleanup', async () => {
+      source = new FilesystemSource({
+        path: tempDir,
+      });
+
+      await expect(source.cleanup()).resolves.not.toThrow();
     });
   });
 });

@@ -9,3 +9,5 @@ export { SkillParser } from './parser';
 export { PluginManager } from './plugin';
 export { SkillLoader } from './SkillLoader';
 export type { SkillLoaderOptions, LoadAllResult } from './SkillLoader';
+export { createSources } from './factory';
+export type { SourceConfig, FilesystemSourceConfig, GitSourceConfig } from './factory';

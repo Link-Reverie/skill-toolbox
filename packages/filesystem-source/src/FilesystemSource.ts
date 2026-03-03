@@ -1,55 +1,72 @@
 import path from 'path';
 import fs from 'fs-extra';
-import type { SkillSource, SourceInfo, SourceLoadResult } from '@skill-toolbox/utils';
+import type { SkillSource, SourceInfo, SourceLoadResult, SourceCategory, LoadedSourceInfo } from '@skill-toolbox/utils';
 import { findSkillFile } from '@skill-toolbox/utils';
 
 export interface FilesystemSourceOptions {
   /** Path to the skills directory or file */
   path: string;
-  /** Optional name for this source (used in skill names) */
+  /** Display name for this source (used in skill names) */
   name?: string;
+  /** Category override (defaults to 'global' if name is 'global', else 'local') */
+  category?: SourceCategory;
 }
 
 export class FilesystemSource implements SkillSource {
   private targetPath: string;
-  private sourceId: string;
-  private category: 'local' | 'global';
+  private name: string;
+  private category: SourceCategory;
 
   constructor(options: FilesystemSourceOptions) {
     this.targetPath = options.path;
 
-    // Generate source ID for skill names
+    // Generate name for skill names
     if (options.name) {
-      this.sourceId = options.name;
+      this.name = options.name;
     } else {
       // Use directory name or 'local' for absolute paths
       const resolved = path.resolve(options.path);
       const dirName = path.basename(resolved);
-      this.sourceId = dirName || 'local';
+      this.name = dirName || 'local';
     }
 
-    // Determine category based on name
-    this.category = this.sourceId === 'global' ? 'global' : 'local';
+    // Determine category
+    if (options.category) {
+      this.category = options.category;
+    } else {
+      this.category = this.name === 'global' ? 'global' : 'local';
+    }
   }
 
   getSourceInfo(): SourceInfo {
     return {
       type: 'filesystem',
       category: this.category,
-      identifier: this.sourceId,
-      path: path.resolve(this.targetPath),
+      identifier: this.name,
     };
   }
 
   async load(): Promise<SourceLoadResult> {
+    // Initialize info with default path (will be updated after resolution)
+    const info: LoadedSourceInfo = {
+      type: 'filesystem',
+      category: this.category,
+      identifier: this.name,
+      path: '', // Will be set below
+    };
+
     const result: SourceLoadResult = {
       skills: [],
       errors: [],
+      info,
     };
 
     try {
       // Resolve to absolute path
       const resolvedPath = path.resolve(this.targetPath);
+
+      // Update info with resolved path
+      result.info.path = resolvedPath;
 
       // Check if path exists
       if (!(await fs.pathExists(resolvedPath))) {
@@ -94,8 +111,9 @@ export class FilesystemSource implements SkillSource {
       const baseName = path.basename(dir);
 
       result.skills.push({
-        name: `${this.sourceId}/${baseName}`,
+        name: `${this.name}/${baseName}`,
         baseName,
+        source: this.name,
         path: filePath,
         directory: dir,
         content,
@@ -131,8 +149,9 @@ export class FilesystemSource implements SkillSource {
             try {
               const content = await fs.readFile(skillFile, 'utf-8');
               result.skills.push({
-                name: `${this.sourceId}/${entry.name}`,
+                name: `${this.name}/${entry.name}`,
                 baseName: entry.name,
+                source: this.name,
                 path: skillFile,
                 directory: entryPath,
                 content,

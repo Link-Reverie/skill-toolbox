@@ -2,16 +2,18 @@ import path from 'path';
 import os from 'os';
 import { execa } from 'execa';
 import fs from 'fs-extra';
-import type { SkillSource, SourceInfo, SourceLoadResult, LoadOptions } from '@skill-toolbox/utils';
+import type { SkillSource, SourceInfo, SourceLoadResult, LoadOptions, SourceCategory, LoadedSourceInfo } from '@skill-toolbox/utils';
 import { findSkillFile } from '@skill-toolbox/utils';
 
 export interface GitSourceOptions extends LoadOptions {
   /** Git repository source (e.g., 'user/repo' or 'https://github.com/user/repo.git') */
   source: string;
-  /** Skill path within repository (e.g., 'skills', 'docs/skills', '' for root) */
+  /** Skill path within repository (e.g., 'skills', 'docs/skills', '' for root - default is root) */
   skillPath?: string;
   /** Display name for this source (shown in prompt, defaults to cache dir path) */
   name?: string;
+  /** Category override (defaults to 'git') */
+  category?: SourceCategory;
 }
 
 export class GitSource implements SkillSource {
@@ -22,43 +24,47 @@ export class GitSource implements SkillSource {
   private shallow: boolean;
   private localPath?: string;
   private tempDirs = new Set<string>();
-  private displayName?: string;
-  private category: 'git';
+  private name?: string;
+  private category: SourceCategory;
 
   constructor(options: GitSourceOptions) {
     this.source = options.source;
-    this.skillPath = options.skillPath !== undefined ? options.skillPath : 'skills';
+    this.skillPath = options.skillPath ?? '';  // Default to root directory
     this.cacheDir = options.cacheDir;
-    this.timeout = options.timeout || 60000;
+    this.timeout = options.timeout ?? 60000;
     this.shallow = options.shallow !== false;
-    this.displayName = options.name;
-    this.category = 'git';  // Git sources always have 'git' category
+    this.name = options.name;
+    this.category = options.category ?? 'git';  // Default to 'git'
   }
 
   getSourceInfo(): SourceInfo {
     const info: SourceInfo = {
       type: 'git',
       category: this.category,
-      identifier: this.displayName || this.source,
+      identifier: this.name ?? this.source,
     };
-
-    // Add path if repository has been cloned
-    if (this.localPath) {
-      info.path = this.localPath;
-    }
 
     return info;
   }
 
   async load(options?: LoadOptions): Promise<SourceLoadResult> {
+    // Initialize info with default values
+    const info: LoadedSourceInfo = {
+      type: 'git',
+      category: this.category,
+      identifier: this.name ?? this.source,
+      path: '', // Will be set after clone
+    };
+
     const result: SourceLoadResult = {
       skills: [],
       errors: [],
+      info,
     };
 
-    const cacheDir = options?.cacheDir || this.cacheDir;
-    const timeout = options?.timeout || this.timeout;
-    const shallow = options?.shallow !== undefined ? options.shallow : this.shallow;
+    const cacheDir = options?.cacheDir ?? this.cacheDir;
+    const timeout = options?.timeout ?? this.timeout;
+    const shallow = options?.shallow ?? this.shallow;
 
     try {
       // 1. Resolve repository URL
@@ -67,10 +73,13 @@ export class GitSource implements SkillSource {
       // 2. Clone repository
       this.localPath = await this.clone(url, { cacheDir, timeout, shallow });
 
-      // Generate display name if not set
-      if (!this.displayName) {
-        // Shorten the path for display
-        this.displayName = this.localPath;
+      // Update result info with actual path
+      result.info.path = this.localPath;
+
+      // Generate name if not set
+      if (!this.name) {
+        this.name = this.localPath;
+        result.info.identifier = this.name;
       }
 
       // 3. Discover skill directories
@@ -91,8 +100,9 @@ export class GitSource implements SkillSource {
         try {
           const content = await fs.readFile(skillFile, 'utf-8');
           result.skills.push({
-            name: `${this.displayName}/${dir}`,
+            name: `${this.name}/${dir}`,
             baseName: dir,
+            source: this.name ?? this.source,
             path: skillFile,
             directory: path.dirname(skillFile),
             content,
@@ -207,7 +217,7 @@ export class GitSource implements SkillSource {
     }
 
     // If skillPath is empty, search root directory
-    if (!this.skillPath || this.skillPath === '') {
+    if (!this.skillPath) {
       const entries = await fs.readdir(this.localPath, { withFileTypes: true });
       const dirs: string[] = [];
 

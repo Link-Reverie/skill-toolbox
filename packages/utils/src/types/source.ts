@@ -9,7 +9,7 @@ export type SourceType = 'git' | 'filesystem';
 export type SourceCategory = 'local' | 'global' | 'git';
 
 /**
- * Information about a skill source
+ * Information about a skill source (available before load)
  */
 export interface SourceInfo {
   /** Source type (technical) */
@@ -18,8 +18,14 @@ export interface SourceInfo {
   category: SourceCategory;
   /** Unique identifier for this source (e.g., 'user/repo' or 'local') */
   identifier: string;
+}
+
+/**
+ * Information about a skill source after loading (extends SourceInfo with path)
+ */
+export interface LoadedSourceInfo extends SourceInfo {
   /** Actual path to the source location (resolved after load) */
-  path?: string;
+  path: string;
 }
 
 /**
@@ -30,6 +36,8 @@ export interface LoadedSkill {
   name: string;
   /** Base skill name (e.g., 'skill-name') */
   baseName: string;
+  /** Source identifier (e.g., 'user/repo', 'local', 'global') */
+  source: string;
   /** Path to SKILL.md file */
   path: string;
   /** Directory containing the skill */
@@ -51,6 +59,8 @@ export interface SourceLoadResult {
     /** Error details */
     error: Error;
   }>;
+  /** Full source info after loading (includes resolved path) */
+  info: LoadedSourceInfo;
 }
 
 /**
