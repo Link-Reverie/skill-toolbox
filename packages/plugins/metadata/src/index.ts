@@ -2,39 +2,53 @@ import yaml from 'js-yaml';
 import type { SkillPlugin, SkillIR, SkillMetadata } from '@skill-toolbox/utils';
 import { ParseError } from '@skill-toolbox/utils';
 
-export interface MetadataPluginOptions {
-  /** Required metadata fields */
-  required?: string[];
-}
-
 /**
  * Metadata plugin for parsing YAML frontmatter
+ *
+ * Required format:
+ * - name (required, top-level)
+ * - description (required, top-level)
+ * - metadata (optional, nested object)
+ *
+ * Example:
+ * name: pdf-processing
+ * description: PDF processing skill
+ * license: Apache-2.0
+ * metadata:
+ *   author: example-org
+ *   version: "1.0"
  */
-export const metadataPlugin = (options?: MetadataPluginOptions): SkillPlugin => ({
+export const metadataPlugin = (): SkillPlugin => ({
   name: 'metadata',
   version: '1.0.0',
 
   parse(ir: SkillIR): SkillIR {
     if (!ir.frontmatter) {
-      return { ...ir, metadata: {} };
+      throw new ParseError('Missing frontmatter: name and description are required');
     }
 
     try {
       // Parse YAML
-      const metadata = yaml.load(ir.frontmatter) as SkillMetadata;
+      const raw = yaml.load(ir.frontmatter) as Record<string, any>;
 
-      // Validate required fields
-      if (options?.required) {
-        const missing = options.required.filter(field => !metadata[field as keyof SkillMetadata]);
-        if (missing.length > 0) {
-          throw new ParseError(
-            `Missing required metadata fields: ${missing.join(', ')}`,
-            { missing }
-          );
-        }
+      // Validate required top-level fields
+      if (!raw.name) {
+        throw new ParseError('Missing required field: name');
+      }
+      if (!raw.description) {
+        throw new ParseError('Missing required field: description');
       }
 
-      return { ...ir, metadata };
+      // Extract top-level and nested metadata
+      const { metadata, ...topLevel } = raw;
+
+      // Merge: top-level fields + nested metadata fields (if present)
+      const result: SkillMetadata = {
+        ...topLevel,
+        ...(metadata && typeof metadata === 'object' ? metadata : {})
+      };
+
+      return { ...ir, metadata: result };
     } catch (error) {
       if (error instanceof ParseError) {
         throw error;
