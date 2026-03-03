@@ -1,4 +1,4 @@
-export interface ResolvedSource {
+export interface GitResolvedSource {
   /** Git URL */
   url: string;
   /** Repository information */
@@ -6,17 +6,20 @@ export interface ResolvedSource {
     owner: string;
     name: string;
     branch?: string;
-    path?: string;
   };
+  /** Skill path within repository (default: 'skills') */
+  skillPath: string;
   /** Cached path if already cached */
   cached?: string;
 }
 
 export interface GitSourceOptions {
-  /** Cache directory */
-  cacheDir?: string;
+  /** Default cache directory for cloned repositories */
+  defaultCacheDir?: string;
   /** Clone timeout in milliseconds */
   timeout?: number;
   /** Use shallow clone */
   shallow?: boolean;
+  /** Default skill path within repositories (default: 'skills') */
+  defaultSkillPath?: string;
 }

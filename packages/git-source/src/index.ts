@@ -6,4 +6,4 @@
 export const VERSION = '1.0.0';
 
 export { GitSource } from './GitSource';
-export type { ResolvedSource, GitSourceOptions } from './types';
+export type { GitResolvedSource, GitSourceOptions } from './types';
