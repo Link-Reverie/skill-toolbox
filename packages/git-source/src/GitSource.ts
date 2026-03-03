@@ -23,8 +23,8 @@ export class GitSource implements SkillSource {
 
   async canHandle(source: string): Promise<boolean> {
     try {
-      // Check if it's a GitHub shorthand (user/repo or user/repo:path)
-      if (/^[\w-]+\/[\w-]+(:[\w\/-]+)?$/.test(source)) {
+      // Check if it's a GitHub shorthand (user/repo or user/repo:path, path can be empty)
+      if (/^[\w-]+\/[\w-]+(:[\w\/-]*)?$/.test(source)) {
         return true;
       }
 
@@ -84,7 +84,8 @@ export class GitSource implements SkillSource {
   }
 
   async discover(localPath: string, meta: SkillSourceMeta): Promise<DiscoveredSkill[]> {
-    const skillPath = meta.skillPath || this.defaultSkillPath;
+    // Use meta.skillPath if defined (including empty string), otherwise use default
+    const skillPath = meta.skillPath !== undefined ? meta.skillPath : this.defaultSkillPath;
 
     // Security: Validate skillPath to prevent directory traversal
     if (skillPath.includes('..')) {
@@ -102,6 +103,31 @@ export class GitSource implements SkillSource {
     // Security: Ensure resolved path doesn't escape repository root
     if (!resolved.startsWith(path.resolve(localPath))) {
       throw new GitSourceError('Invalid skill path: escapes repository root', meta.source);
+    }
+
+    // If skillPath is empty, search in root directory for skill subdirectories
+    if (!skillPath || skillPath === '') {
+      const skills: DiscoveredSkill[] = [];
+      const entries = await fs.readdir(localPath, { withFileTypes: true });
+
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name.startsWith('.')) continue; // Skip hidden directories
+
+        const skillDir = path.join(localPath, entry.name);
+        const skillFile = await findSkillFile(skillDir);
+
+        if (skillFile) {
+          skills.push({
+            name: entry.name,
+            path: skillFile,
+            directory: skillDir,
+            source: meta,
+          });
+        }
+      }
+
+      return skills;
     }
 
     // Check if skills directory exists
@@ -163,7 +189,7 @@ export class GitSource implements SkillSource {
    * - https://github.com/user/repo.git
    */
   private async parseGitSource(source: string): Promise<GitResolvedSource> {
-    // github:user/repo format
+    // github:user/repo format (path can be empty for root directory)
     if (source.startsWith('github:')) {
       const parts = source.slice(7).split('/');
       if (parts.length < 2) {
@@ -175,19 +201,21 @@ export class GitSource implements SkillSource {
       return {
         url: `https://github.com/${owner}/${name}.git`,
         repo: { owner, name },
-        skillPath: skillPath || this.defaultSkillPath,
+        // If skillPath is empty string (from "repo:"), use it; otherwise use default
+        skillPath: skillPath !== undefined ? skillPath : this.defaultSkillPath,
       };
     }
 
-    // user/repo or user/repo:path format
-    if (/^[\w-]+\/[\w-]+(:[\w\/-]+)?$/.test(source)) {
+    // user/repo or user/repo:path format (path can be empty for root directory)
+    if (/^[\w-]+\/[\w-]+(:[\w\/-]*)?$/.test(source)) {
       const [repoPart, skillPath] = source.split(':');
       const [owner, name] = repoPart.split('/');
 
       return {
         url: `https://github.com/${owner}/${name}.git`,
         repo: { owner, name },
-        skillPath: skillPath || this.defaultSkillPath,
+        // If skillPath is empty string (from "repo:"), use it; otherwise use default
+        skillPath: skillPath !== undefined ? skillPath : this.defaultSkillPath,
       };
     }
 
