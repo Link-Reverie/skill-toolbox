@@ -7,3 +7,5 @@ export const VERSION = '1.0.0';
 
 export { SkillParser } from './parser';
 export { PluginManager } from './plugin';
+export { SkillLoader } from './SkillLoader';
+export type { SkillLoaderOptions, LoadResult } from './SkillLoader';
