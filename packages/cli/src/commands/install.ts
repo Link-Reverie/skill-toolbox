@@ -3,102 +3,72 @@ import ora from 'ora';
 import fs from 'fs-extra';
 import path from 'path';
 import { GitSource } from '@skill-toolbox/git-source';
-import { SkillParser } from '@skill-toolbox/core';
+import { FilesystemSource } from '@skill-toolbox/filesystem-source';
+import { SkillLoader } from '@skill-toolbox/core';
 import { metadataPlugin } from '@skill-toolbox/plugin-metadata';
+import { SkillParser } from '@skill-toolbox/core';
 
 export async function installCommand(source: string, options: { dir: string }) {
   const spinner = ora('Installing skill...').start();
 
   try {
-    // Check if source is a local path
-    const isLocal = await fs.pathExists(source);
-    let skillDir: string;
-    let shouldCleanup = false;
-
-    if (isLocal) {
-      // Use local path directly
-      spinner.text = 'Installing from local path...';
-      const stat = await fs.stat(source);
-
-      if (stat.isDirectory()) {
-        skillDir = source;
-      } else {
-        // If it's a file, use the parent directory
-        skillDir = path.dirname(source);
-      }
-    } else {
-      // Use Git source
-      const gitSource = new GitSource();
-
-      // 1. Resolve source
-      spinner.text = 'Resolving source...';
-      const resolved = await gitSource.resolve(source);
-
-      // 2. Clone to temp directory
-      spinner.text = `Cloning from ${resolved.url}...`;
-      skillDir = await gitSource.clone(resolved.url);
-      shouldCleanup = true;
-    }
-
-    // 3. Validate skill
-    spinner.text = 'Validating skill...';
-    const skillFile = await findSkillFile(skillDir);
-
-    if (!skillFile) {
-      spinner.fail(chalk.red('Invalid skill: no skill file found'));
-      if (shouldCleanup) {
-        await fs.remove(skillDir);
-      }
-      process.exit(1);
-    }
-
-    const markdown = await fs.readFile(skillFile, 'utf-8');
+    // Create loader with sources
     const parser = new SkillParser().use(metadataPlugin());
-    const skill = await parser.parse(markdown);
+    const loader = new SkillLoader({
+      sources: [
+        new FilesystemSource(),
+        new GitSource(),
+      ],
+      parser,
+    });
 
-    if (!skill || !skill.metadata.name) {
-      spinner.fail(chalk.red('Invalid skill: missing required metadata'));
-      if (shouldCleanup) {
-        await fs.remove(skillDir);
+    // Load skills from source
+    spinner.text = 'Loading skill...';
+    const result = await loader.loadFromSource(source);
+
+    if (result.errors.length > 0) {
+      for (const error of result.errors) {
+        spinner.fail(chalk.red(`Error loading from ${error.source}: ${error.error.message}`));
       }
       process.exit(1);
     }
 
-    // 4. Install
-    spinner.text = 'Installing skill...';
-    const targetDir = path.join(options.dir, skill.metadata.name);
-    await fs.ensureDir(options.dir);
-    await fs.copy(skillDir, targetDir);
-
-    // 5. Clean up temp directory if it was cloned
-    if (shouldCleanup) {
-      await fs.remove(skillDir);
+    if (result.skills.size === 0) {
+      spinner.fail(chalk.red('No skills found'));
+      process.exit(1);
     }
 
-    spinner.succeed(chalk.green(`✓ Skill "${skill.metadata.name}" installed successfully!`));
+    // Install all loaded skills
+    spinner.text = 'Installing skills...';
+    await fs.ensureDir(options.dir);
 
-    console.log('\nSkill Info:');
-    console.log(chalk.gray('  Name:'), skill.metadata.name);
-    console.log(chalk.gray('  Version:'), skill.metadata.version);
-    if (skill.metadata.description) {
-      console.log(chalk.gray('  Description:'), skill.metadata.description);
+    const installedSkills: string[] = [];
+    for (const [name, skill] of result.skills) {
+      // Get skill directory from raw path
+      const skillDir = path.dirname(skill.raw.path || '');
+      const targetDir = path.join(options.dir, name);
+
+      // Copy skill to target directory
+      await fs.copy(skillDir, targetDir, { overwrite: true });
+      installedSkills.push(name);
+    }
+
+    spinner.succeed(chalk.green(`✓ ${installedSkills.length} skill(s) installed successfully!`));
+
+    // Display installed skills info
+    console.log('\nInstalled Skills:');
+    for (const name of installedSkills) {
+      const skill = result.skills.get(name);
+      if (skill) {
+        console.log(chalk.gray('  •'), chalk.cyan(name), chalk.gray(`v${skill.metadata.version}`));
+        if (skill.metadata.description) {
+          console.log(chalk.gray('    '), skill.metadata.description);
+        }
+      }
     }
 
   } catch (error) {
     spinner.fail(chalk.red(`Failed to install skill: ${error instanceof Error ? error.message : 'Unknown error'}`));
     process.exit(1);
   }
-}
-
-async function findSkillFile(dir: string): Promise<string | null> {
-  const candidates = ['SKILL.md', 'skill.md', 'README.md', 'readme.md'];
-
-  for (const file of candidates) {
-    const filePath = path.join(dir, file);
-    if (await fs.pathExists(filePath)) {
-      return filePath;
-    }
-  }
-
-  return null;
 }

@@ -1,62 +1,45 @@
-import fs from 'fs-extra';
-import path from 'path';
-import { SkillParser } from '@skill-toolbox/core';
+import { SkillLoader as CoreSkillLoader, SkillParser } from '@skill-toolbox/core';
+import { FilesystemSource } from '@skill-toolbox/filesystem-source';
 import { metadataPlugin } from '@skill-toolbox/plugin-metadata';
 import type { Skill } from '@skill-toolbox/utils';
 
 export class SkillLoader {
+  private loader: CoreSkillLoader;
   private skillsDir: string;
 
   constructor(skillsDir: string) {
     this.skillsDir = skillsDir;
+    const parser = new SkillParser().use(metadataPlugin());
+
+    this.loader = new CoreSkillLoader({
+      sources: [new FilesystemSource({ cwd: skillsDir })],  // Base directory for relative paths
+      parser,
+    });
   }
 
   async loadAll(): Promise<Map<string, Skill>> {
-    const skills = new Map<string, Skill>();
+    // Load from both local and global skill directories
+    const sources = [
+      '.',                                              // Local: skillsDir (cwd)
+      'C:\\Users\\Administrator\\.claude\\skills'      // Global: absolute path
+    ];
 
-    if (!(await fs.pathExists(this.skillsDir))) {
-      return skills;
-    }
+    let allSkills = new Map<string, Skill>();
 
-    const entries = await fs.readdir(this.skillsDir, { withFileTypes: true });
+    for (const source of sources) {
+      const result = await this.loader.loadFromSource(source);
 
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
+      // Log any errors
+      for (const error of result.errors) {
+        console.warn(`Failed to load skill from ${error.source}:`, error.error);
+      }
 
-      try {
-        const skill = await this.load(path.join(this.skillsDir, entry.name));
-        if (skill) {
-          skills.set(skill.metadata.name, skill);
-        }
-      } catch (error) {
-        console.warn(`Failed to load skill ${entry.name}:`, error);
+      // Merge skills (later sources override earlier ones with same name)
+      for (const [name, skill] of result.skills) {
+        allSkills.set(name, skill);
       }
     }
 
-    return skills;
-  }
-
-  private async load(skillPath: string): Promise<Skill | null> {
-    const skillFile = await this.findSkillFile(skillPath);
-    if (!skillFile) {
-      return null;
-    }
-
-    const markdown = await fs.readFile(skillFile, 'utf-8');
-    const parser = new SkillParser().use(metadataPlugin());
-    return parser.parse(markdown);
-  }
-
-  private async findSkillFile(dir: string): Promise<string | null> {
-    const candidates = ['SKILL.md', 'skill.md', 'README.md', 'readme.md'];
-
-    for (const file of candidates) {
-      const filePath = path.join(dir, file);
-      if (await fs.pathExists(filePath)) {
-        return filePath;
-      }
-    }
-
-    return null;
+    return allSkills;
   }
 }

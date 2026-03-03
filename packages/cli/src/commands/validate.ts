@@ -3,6 +3,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import { SkillParser } from '@skill-toolbox/core';
 import { metadataPlugin } from '@skill-toolbox/plugin-metadata';
+import { findSkillFile } from '@skill-toolbox/utils';
 
 export async function validateCommand(skillPath: string) {
   const parser = new SkillParser().use(metadataPlugin());
@@ -50,17 +51,4 @@ export async function validateCommand(skillPath: string) {
     console.log(chalk.red(`  Error: ${error instanceof Error ? error.message : 'Unknown error'}`));
     process.exit(1);
   }
-}
-
-async function findSkillFile(dir: string): Promise<string | null> {
-  const candidates = ['SKILL.md', 'skill.md', 'README.md', 'readme.md'];
-
-  for (const file of candidates) {
-    const filePath = path.join(dir, file);
-    if (await fs.pathExists(filePath)) {
-      return filePath;
-    }
-  }
-
-  return null;
 }

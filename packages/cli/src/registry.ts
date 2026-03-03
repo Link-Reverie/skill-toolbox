@@ -3,6 +3,7 @@ import path from 'path';
 import { SkillParser } from '@skill-toolbox/core';
 import { metadataPlugin } from '@skill-toolbox/plugin-metadata';
 import type { Skill } from '@skill-toolbox/utils';
+import { findSkillFile } from '@skill-toolbox/utils';
 
 export class SkillRegistry {
   constructor(private skillsDir: string) {}
@@ -34,7 +35,7 @@ export class SkillRegistry {
       return null;
     }
 
-    const skillFile = await this.findSkillFile(skillPath);
+    const skillFile = await findSkillFile(skillPath);
     if (!skillFile) {
       return null;
     }
@@ -42,18 +43,5 @@ export class SkillRegistry {
     const markdown = await fs.readFile(skillFile, 'utf-8');
     const parser = new SkillParser().use(metadataPlugin());
     return parser.parse(markdown);
-  }
-
-  private async findSkillFile(dir: string): Promise<string | null> {
-    const candidates = ['SKILL.md', 'skill.md', 'README.md', 'readme.md'];
-
-    for (const file of candidates) {
-      const filePath = path.join(dir, file);
-      if (await fs.pathExists(filePath)) {
-        return filePath;
-      }
-    }
-
-    return null;
   }
 }

@@ -5,6 +5,7 @@ import { SkillParser } from '@skill-toolbox/core';
 import { metadataPlugin } from '@skill-toolbox/plugin-metadata';
 import type { Skill } from '@skill-toolbox/utils';
 import { GitSource } from '@skill-toolbox/git-source';
+import { findSkillFile } from '@skill-toolbox/utils';
 
 export interface CommandContext {
   skills: Map<string, Skill>;
@@ -144,16 +145,3 @@ export const commands: Record<string, { description: string; handler: CommandHan
     },
   },
 };
-
-async function findSkillFile(dir: string): Promise<string | null> {
-  const candidates = ['SKILL.md', 'skill.md', 'README.md', 'readme.md'];
-
-  for (const file of candidates) {
-    const filePath = path.join(dir, file);
-    if (await fs.pathExists(filePath)) {
-      return filePath;
-    }
-  }
-
-  return null;
-}
