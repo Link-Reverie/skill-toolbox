@@ -23,6 +23,58 @@ export function createBashTool(config: BashToolConfig): { tool: Tool; executor: 
     },
   };
 
+  /**
+   * Check if command needs shell features (pipes, redirects, etc.)
+   */
+  function needsShell(command: string): boolean {
+    const shellChars = ['|', '&', ';', '>', '<', '*', '?', '$', '`', '$(', '||', '&&'];
+    return shellChars.some(char => command.includes(char));
+  }
+
+  /**
+   * Parse command into executable and args
+   * Handles quoted strings and basic escaping
+   */
+  function parseCommand(command: string): { executable: string; args: string[] } {
+    // Remove extra whitespace
+    command = command.trim();
+
+    // Split by spaces, but respect quoted strings
+    const args: string[] = [];
+    let current = '';
+    let inQuote = false;
+    let quoteChar = '';
+
+    for (let i = 0; i < command.length; i++) {
+      const char = command[i];
+      const nextChar = command[i + 1];
+
+      if ((char === '"' || char === "'") && !inQuote) {
+        inQuote = true;
+        quoteChar = char;
+      } else if (char === quoteChar && inQuote) {
+        inQuote = false;
+        quoteChar = '';
+      } else if (char === ' ' && !inQuote) {
+        if (current) {
+          args.push(current);
+          current = '';
+        }
+      } else {
+        current += char;
+      }
+    }
+
+    if (current) {
+      args.push(current);
+    }
+
+    return {
+      executable: args[0] || '',
+      args: args.slice(1),
+    };
+  }
+
   const executor: ToolExecutor = async (input: any) => {
     if (!input.command || typeof input.command !== 'string') {
       throw new Error('Command is required and must be a string');
@@ -30,8 +82,11 @@ export function createBashTool(config: BashToolConfig): { tool: Tool; executor: 
 
     const command = input.command.trim();
 
-    // Extract the base command (first word)
-    const baseCommand = command.split(/\s+/)[0];
+    // Check if command needs shell (pipes, redirects, etc.)
+    const useShell = needsShell(command);
+
+    // Extract base command for whitelist check
+    const { executable: baseCommand } = parseCommand(command);
 
     // Check if the base command is in the whitelist
     if (!config.allowedCommands.includes(baseCommand)) {
@@ -41,12 +96,27 @@ export function createBashTool(config: BashToolConfig): { tool: Tool; executor: 
     }
 
     try {
-      // Execute the command with timeout
-      const result = await execa(command, [], {
-        shell: true,
-        timeout: config.timeout,
-        reject: true,
-      });
+      let result;
+
+      if (useShell) {
+        // Complex command: use shell with proper executable
+        const isWindows = process.platform === 'win32';
+        const shell = isWindows ? 'bash' : 'sh';
+
+        result = await execa(command, [], {
+          shell,
+          timeout: config.timeout,
+          reject: true,
+        });
+      } else {
+        // Simple command: use args array for safety
+        const { executable, args } = parseCommand(command);
+
+        result = await execa(executable, args, {
+          timeout: config.timeout,
+          reject: true,
+        });
+      }
 
       // Return stdout
       return result.stdout || '(no output)';

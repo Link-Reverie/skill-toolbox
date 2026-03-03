@@ -1,122 +1,164 @@
 import path from 'path';
 import fs from 'fs-extra';
-import type { SkillSource, SkillSourceMeta, DiscoveredSkill, FetchOptions } from '@skill-toolbox/utils';
+import type { SkillSource, SourceInfo, SourceLoadResult } from '@skill-toolbox/utils';
 import { findSkillFile } from '@skill-toolbox/utils';
 
 export interface FilesystemSourceOptions {
-  /** Base directory for relative paths */
-  cwd?: string;
+  /** Path to the skills directory or file */
+  path: string;
+  /** Optional name for this source (used in skill names) */
+  name?: string;
 }
 
 export class FilesystemSource implements SkillSource {
-  private cwd: string;
+  private targetPath: string;
+  private sourceId: string;
+  private category: 'local' | 'global';
 
-  constructor(options?: FilesystemSourceOptions) {
-    this.cwd = options?.cwd || process.cwd();
-  }
+  constructor(options: FilesystemSourceOptions) {
+    this.targetPath = options.path;
 
-  async canHandle(source: string): Promise<boolean> {
-    // Check if it's an absolute path
-    if (path.isAbsolute(source)) {
-      return fs.pathExists(source);
+    // Generate source ID for skill names
+    if (options.name) {
+      this.sourceId = options.name;
+    } else {
+      // Use directory name or 'local' for absolute paths
+      const resolved = path.resolve(options.path);
+      const dirName = path.basename(resolved);
+      this.sourceId = dirName || 'local';
     }
 
-    // Check if it's a relative path that exists
-    const absolutePath = path.resolve(this.cwd, source);
-    return fs.pathExists(absolutePath);
+    // Determine category based on name
+    this.category = this.sourceId === 'global' ? 'global' : 'local';
   }
 
-  async resolve(source: string): Promise<SkillSourceMeta> {
-    const resolved = path.isAbsolute(source)
-      ? source
-      : path.resolve(this.cwd, source);
-
-    if (!(await fs.pathExists(resolved))) {
-      throw new Error(`Path does not exist: ${resolved}`);
-    }
-
-    const stat = await fs.stat(resolved);
-    const isFile = stat.isFile();
-
+  getSourceInfo(): SourceInfo {
     return {
       type: 'filesystem',
-      source,
-      resolved,
-      multiSkill: !isFile, // Directories can contain multiple skills
+      category: this.category,
+      identifier: this.sourceId,
+      path: path.resolve(this.targetPath),
     };
   }
 
-  async fetch(meta: SkillSourceMeta, _options?: FetchOptions): Promise<string> {
-    // For filesystem, just validate and return the resolved path
-    // No actual fetching needed
-    if (!(await fs.pathExists(meta.resolved))) {
-      throw new Error(`Path does not exist: ${meta.resolved}`);
-    }
-
-    return meta.resolved;
-  }
-
-  async discover(localPath: string, meta: SkillSourceMeta): Promise<DiscoveredSkill[]> {
-    const stat = await fs.stat(localPath);
-
-    // If it's a file, check if it's a skill file
-    if (stat.isFile()) {
-      const fileName = path.basename(localPath);
-      const skillFileNames = ['SKILL.md', 'skill.md'];
-
-      if (skillFileNames.includes(fileName)) {
-        const skillName = path.basename(path.dirname(localPath));
-        return [{
-          name: skillName,
-          path: localPath,
-          directory: path.dirname(localPath),
-          source: meta,
-        }];
-      }
-
-      return [];
-    }
-
-    // If it's a directory, check if it contains a skill file
-    const skillFile = await findSkillFile(localPath);
-    if (skillFile) {
-      const skillName = path.basename(localPath);
-      return [{
-        name: skillName,
-        path: skillFile,
-        directory: localPath,
-        source: meta,
-      }];
-    }
-
-    // Check for subdirectories that might contain skills
-    const skills: DiscoveredSkill[] = [];
-    let entries: fs.Dirent[];
+  async load(): Promise<SourceLoadResult> {
+    const result: SourceLoadResult = {
+      skills: [],
+      errors: [],
+    };
 
     try {
-      entries = await fs.readdir(localPath, { withFileTypes: true });
-    } catch (error) {
-      // If we can't read the directory (permissions, etc.), return skills discovered so far
-      console.warn(`Warning: Could not read directory ${localPath}:`, error);
-      return skills;
-    }
+      // Resolve to absolute path
+      const resolvedPath = path.resolve(this.targetPath);
 
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-
-      const skillDir = path.join(localPath, entry.name);
-      const childSkillFile = await findSkillFile(skillDir);
-
-      if (childSkillFile) {
-        skills.push({
-          name: entry.name,
-          path: childSkillFile,
-          directory: skillDir,
-          source: meta,
+      // Check if path exists
+      if (!(await fs.pathExists(resolvedPath))) {
+        result.errors.push({
+          path: this.targetPath,
+          error: new Error(`Path does not exist: ${this.targetPath}`),
         });
+        return result;
       }
+
+      const stat = await fs.stat(resolvedPath);
+      const isFile = stat.isFile();
+
+      if (isFile) {
+        // Single skill file
+        await this.loadSingleFile(resolvedPath, result);
+      } else {
+        // Directory with multiple skills
+        await this.loadDirectory(resolvedPath, result);
+      }
+    } catch (error) {
+      result.errors.push({
+        path: this.targetPath,
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
     }
 
-    return skills;
+    return result;
+  }
+
+  async cleanup(): Promise<void> {
+    // Nothing to cleanup for filesystem sources
+  }
+
+  /**
+   * Load a single skill file
+   */
+  private async loadSingleFile(filePath: string, result: SourceLoadResult): Promise<void> {
+    try {
+      const content = await fs.readFile(filePath, 'utf-8');
+      const dir = path.dirname(filePath);
+      const baseName = path.basename(dir);
+
+      result.skills.push({
+        name: `${this.sourceId}/${baseName}`,
+        baseName,
+        path: filePath,
+        directory: dir,
+        content,
+      });
+    } catch (error) {
+      result.errors.push({
+        path: filePath,
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+    }
+  }
+
+  /**
+   * Load all skills from a directory
+   */
+  private async loadDirectory(dirPath: string, result: SourceLoadResult): Promise<void> {
+    try {
+      const entries = await fs.readdir(dirPath, { withFileTypes: true });
+
+      for (const entry of entries) {
+        // Skip hidden files/directories
+        if (entry.name.startsWith('.')) continue;
+
+        const entryPath = path.join(dirPath, entry.name);
+
+        if (entry.isFile() && this.isSkillFileName(entry.name)) {
+          // Skill file in root directory
+          await this.loadSingleFile(entryPath, result);
+        } else if (entry.isDirectory()) {
+          // Check if directory contains a skill file
+          const skillFile = await findSkillFile(entryPath);
+          if (skillFile) {
+            try {
+              const content = await fs.readFile(skillFile, 'utf-8');
+              result.skills.push({
+                name: `${this.sourceId}/${entry.name}`,
+                baseName: entry.name,
+                path: skillFile,
+                directory: entryPath,
+                content,
+              });
+            } catch (error) {
+              result.errors.push({
+                path: skillFile,
+                error: error instanceof Error ? error : new Error(String(error)),
+              });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      result.errors.push({
+        path: dirPath,
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
+    }
+  }
+
+  /**
+   * Check if filename is a valid skill file name
+   */
+  private isSkillFileName(name: string): boolean {
+    const lower = name.toLowerCase();
+    return lower === 'skill.md' || lower === 'readme.md';
   }
 }

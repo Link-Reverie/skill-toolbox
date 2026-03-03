@@ -1,45 +1,84 @@
 import { SkillLoader as CoreSkillLoader, SkillParser } from '@skill-toolbox/core';
 import { FilesystemSource } from '@skill-toolbox/filesystem-source';
+import { GitSource } from '@skill-toolbox/git-source';
 import { metadataPlugin } from '@skill-toolbox/plugin-metadata';
 import type { Skill } from '@skill-toolbox/utils';
+import type { SkillSource } from '@skill-toolbox/utils';
+import type { SourceLocation } from './prompt';
+import path from 'path';
 
 export class SkillLoader {
   private loader: CoreSkillLoader;
-  private skillsDir: string;
+  private sources: SkillSource[];
 
   constructor(skillsDir: string) {
-    this.skillsDir = skillsDir;
     const parser = new SkillParser().use(metadataPlugin());
 
+    // Define all sources at construction time with descriptive names
+    this.sources = [
+      // Local skills directory (use directory name)
+      new FilesystemSource({
+        path: skillsDir,
+        name: path.basename(skillsDir) || 'local',
+      }),
+      // Global skills directory
+      new FilesystemSource({
+        path: path.join(
+          process.env.HOME || process.env.USERPROFILE || '',
+          '.claude',
+          'skills'
+        ),
+        name: 'global',
+      }),
+      // Git repository (ComposioHQ awesome-claude-skills)
+      new GitSource({
+        source: 'ComposioHQ/awesome-claude-skills',
+        skillPath: '',  // 空字符串表示根目录
+        cacheDir: path.join(process.env.HOME || process.env.USERPROFILE || '', '.myagent'),
+        shallow: true,
+        name: '~/.myagent',  // 友好的显示名称
+      }),
+    ];
+
     this.loader = new CoreSkillLoader({
-      sources: [new FilesystemSource({ cwd: skillsDir })],  // Base directory for relative paths
+      sources: this.sources,
       parser,
     });
   }
 
+  /**
+   * Build source locations from the sources' own information
+   * Sources provide their own paths, identifiers, and categories
+   */
+  private buildSourceLocations(): SourceLocation[] {
+    return this.sources.map(source => {
+      const info = source.getSourceInfo();
+
+      // Use category directly from source info
+      return {
+        name: info.identifier,
+        path: info.path || '<not-loaded>',  // Path available after load()
+        type: info.category,  // Use category from source
+      };
+    });
+  }
+
   async loadAll(): Promise<Map<string, Skill>> {
-    // Load from both local and global skill directories
-    const sources = [
-      '.',                                              // Local: skillsDir (cwd)
-      'C:\\Users\\Administrator\\.claude\\skills'      // Global: absolute path
-    ];
+    const { skills, errors } = await this.loader.loadAll();
 
-    let allSkills = new Map<string, Skill>();
-
-    for (const source of sources) {
-      const result = await this.loader.loadFromSource(source);
-
-      // Log any errors
-      for (const error of result.errors) {
-        console.warn(`Failed to load skill from ${error.source}:`, error.error);
-      }
-
-      // Merge skills (later sources override earlier ones with same name)
-      for (const [name, skill] of result.skills) {
-        allSkills.set(name, skill);
-      }
+    // Log any errors
+    for (const [sourcePath, error] of errors) {
+      console.warn(`Failed to load skill from ${sourcePath}:`, error.message);
     }
 
-    return allSkills;
+    return skills;
+  }
+
+  /**
+   * Get the source locations for system prompt generation
+   * Locations are built dynamically from sources' own information
+   */
+  getSourceLocations(): SourceLocation[] {
+    return this.buildSourceLocations();
   }
 }

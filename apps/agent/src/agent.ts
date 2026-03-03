@@ -21,6 +21,7 @@ export class Agent {
   private conversationHistory: Message[];
   private toolRegistry: ToolRegistry;
   private llmClient: LLMClient;
+  private skillLoader: SkillLoader;
 
   constructor(config: AgentConfig) {
     this.config = config;
@@ -33,6 +34,7 @@ export class Agent {
       config.maxTokens,
       config.baseURL
     );
+    this.skillLoader = new SkillLoader(config.skillsDir);
   }
 
   /**
@@ -71,7 +73,8 @@ export class Agent {
       });
 
       // Build system prompt
-      const systemPrompt = buildSystemPrompt(this.skills);
+      const sourceLocations = this.skillLoader.getSourceLocations();
+      const systemPrompt = buildSystemPrompt(this.skills, sourceLocations);
 
       // Get tool definitions
       const tools = this.toolRegistry.getToolDefinitions();
@@ -120,8 +123,7 @@ export class Agent {
   }
 
   private async loadSkills(): Promise<void> {
-    const loader = new SkillLoader(this.config.skillsDir);
-    this.skills = await loader.loadAll();
+    this.skills = await this.skillLoader.loadAll();
   }
 
   private registerTools(): void {
@@ -220,6 +222,10 @@ export class Agent {
           for (const toolUseBlock of toolUseBlocks) {
             try {
               console.log(chalk.cyan(`[Tool: ${toolUseBlock.name}]`));
+              // Output tool parameters
+              const params = JSON.stringify(toolUseBlock.input, null, 2);
+              console.log(chalk.gray(`[Params: ${params}]`));
+
               const result = await this.toolRegistry.execute(
                 toolUseBlock.name,
                 toolUseBlock.input

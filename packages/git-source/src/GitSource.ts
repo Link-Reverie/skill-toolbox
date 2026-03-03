@@ -2,250 +2,260 @@ import path from 'path';
 import os from 'os';
 import { execa } from 'execa';
 import fs from 'fs-extra';
-import type { SkillSource, SkillSourceMeta, DiscoveredSkill, FetchOptions } from '@skill-toolbox/utils';
-import { GitSourceError, findSkillFile } from '@skill-toolbox/utils';
-import type { GitResolvedSource, GitSourceOptions } from './types';
+import type { SkillSource, SourceInfo, SourceLoadResult, LoadOptions } from '@skill-toolbox/utils';
+import { findSkillFile } from '@skill-toolbox/utils';
+
+export interface GitSourceOptions extends LoadOptions {
+  /** Git repository source (e.g., 'user/repo' or 'https://github.com/user/repo.git') */
+  source: string;
+  /** Skill path within repository (e.g., 'skills', 'docs/skills', '' for root) */
+  skillPath?: string;
+  /** Display name for this source (shown in prompt, defaults to cache dir path) */
+  name?: string;
+}
 
 export class GitSource implements SkillSource {
+  private source: string;
+  private skillPath: string;
+  private cacheDir?: string;
   private timeout: number;
   private shallow: boolean;
-  private defaultSkillPath: string;
-  private defaultCacheDir: string;
+  private localPath?: string;
   private tempDirs = new Set<string>();
+  private displayName?: string;
+  private category: 'git';
 
-  constructor(options?: GitSourceOptions) {
-    this.timeout = options?.timeout || 60000;
-    this.shallow = options?.shallow ?? true;
-    this.defaultSkillPath = options?.defaultSkillPath || 'skills';
-    this.defaultCacheDir = options?.defaultCacheDir ||
-      path.join(os.tmpdir(), 'skill-toolbox');
+  constructor(options: GitSourceOptions) {
+    this.source = options.source;
+    this.skillPath = options.skillPath !== undefined ? options.skillPath : 'skills';
+    this.cacheDir = options.cacheDir;
+    this.timeout = options.timeout || 60000;
+    this.shallow = options.shallow !== false;
+    this.displayName = options.name;
+    this.category = 'git';  // Git sources always have 'git' category
   }
 
-  async canHandle(source: string): Promise<boolean> {
-    try {
-      // Check if it's a GitHub shorthand (user/repo or user/repo:path, path can be empty)
-      if (/^[\w-]+\/[\w-]+(:[\w\/-]*)?$/.test(source)) {
-        return true;
-      }
-
-      // Check if it's a github: prefixed source
-      if (source.startsWith('github:')) {
-        return true;
-      }
-
-      // Check if it's a git URL
-      if (source.includes('github.com') || source.endsWith('.git')) {
-        return true;
-      }
-
-      return false;
-    } catch {
-      return false;
-    }
-  }
-
-  async resolve(source: string): Promise<SkillSourceMeta> {
-    const resolved = await this.parseGitSource(source);
-
-    return {
+  getSourceInfo(): SourceInfo {
+    const info: SourceInfo = {
       type: 'git',
-      source,
-      resolved: resolved.url,
-      multiSkill: true,
-      skillPath: resolved.skillPath,
-      cachedPath: resolved.cached,
+      category: this.category,
+      identifier: this.displayName || this.source,
     };
-  }
 
-  async fetch(meta: SkillSourceMeta, options?: FetchOptions): Promise<string> {
-    const resolved = await this.parseGitSource(meta.source);
-
-    // If cacheDir provided, clone there (user controls caching)
-    // Otherwise clone to default cache dir or temp and track for cleanup
-    const cacheBase = options?.cacheDir || this.defaultCacheDir;
-    const targetDir = path.join(cacheBase, `${resolved.repo.owner}-${resolved.repo.name}`);
-
-    if (!options?.cacheDir) {
-      this.tempDirs.add(targetDir);
+    // Add path if repository has been cloned
+    if (this.localPath) {
+      info.path = this.localPath;
     }
 
-    // Check if already cloned
-    if (await fs.pathExists(targetDir)) {
-      if (options?.force) {
-        await fs.remove(targetDir);
-      } else {
-        return targetDir;
+    return info;
+  }
+
+  async load(options?: LoadOptions): Promise<SourceLoadResult> {
+    const result: SourceLoadResult = {
+      skills: [],
+      errors: [],
+    };
+
+    const cacheDir = options?.cacheDir || this.cacheDir;
+    const timeout = options?.timeout || this.timeout;
+    const shallow = options?.shallow !== undefined ? options.shallow : this.shallow;
+
+    try {
+      // 1. Resolve repository URL
+      const url = await this.resolveUrl();
+
+      // 2. Clone repository
+      this.localPath = await this.clone(url, { cacheDir, timeout, shallow });
+
+      // Generate display name if not set
+      if (!this.displayName) {
+        // Shorten the path for display
+        this.displayName = this.localPath;
       }
-    }
 
-    // Clone the repository
-    await this.clone(resolved.url, targetDir, { branch: resolved.repo.branch });
-    return targetDir;
-  }
+      // 3. Discover skill directories
+      const skillDirs = await this.discoverSkillDirs();
 
-  async discover(localPath: string, meta: SkillSourceMeta): Promise<DiscoveredSkill[]> {
-    // Use meta.skillPath if defined (including empty string), otherwise use default
-    const skillPath = meta.skillPath !== undefined ? meta.skillPath : this.defaultSkillPath;
+      // 4. Load all SKILL.md files
+      for (const dir of skillDirs) {
+        const skillFile = await findSkillFile(path.join(this.localPath, dir));
 
-    // Security: Validate skillPath to prevent directory traversal
-    if (skillPath.includes('..')) {
-      throw new GitSourceError('Invalid skill path: path traversal not allowed', meta.source);
-    }
+        if (!skillFile) {
+          result.errors.push({
+            path: dir,
+            error: new Error(`No SKILL.md or README.md found in ${dir}`),
+          });
+          continue;
+        }
 
-    // Security: Reject absolute paths
-    if (path.isAbsolute(skillPath)) {
-      throw new GitSourceError('Invalid skill path: absolute paths not allowed', meta.source);
-    }
-
-    const skillsDir = path.join(localPath, skillPath);
-    const resolved = path.resolve(localPath, skillsDir);
-
-    // Security: Ensure resolved path doesn't escape repository root
-    if (!resolved.startsWith(path.resolve(localPath))) {
-      throw new GitSourceError('Invalid skill path: escapes repository root', meta.source);
-    }
-
-    // If skillPath is empty, search in root directory for skill subdirectories
-    if (!skillPath || skillPath === '') {
-      const skills: DiscoveredSkill[] = [];
-      const entries = await fs.readdir(localPath, { withFileTypes: true });
-
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
-        if (entry.name.startsWith('.')) continue; // Skip hidden directories
-
-        const skillDir = path.join(localPath, entry.name);
-        const skillFile = await findSkillFile(skillDir);
-
-        if (skillFile) {
-          skills.push({
-            name: entry.name,
+        try {
+          const content = await fs.readFile(skillFile, 'utf-8');
+          result.skills.push({
+            name: `${this.displayName}/${dir}`,
+            baseName: dir,
             path: skillFile,
-            directory: skillDir,
-            source: meta,
+            directory: path.dirname(skillFile),
+            content,
+          });
+        } catch (error) {
+          result.errors.push({
+            path: skillFile,
+            error: error instanceof Error ? error : new Error(String(error)),
           });
         }
       }
 
-      return skills;
+      // Track for cleanup if not using cache
+      if (!cacheDir) {
+        this.tempDirs.add(this.localPath);
+      }
+    } catch (error) {
+      result.errors.push({
+        path: this.source,
+        error: error instanceof Error ? error : new Error(String(error)),
+      });
     }
 
-    // Check if skills directory exists
-    if (!(await fs.pathExists(skillsDir))) {
-      // Check if the repo itself is a skill (single skill repo)
-      const skillFile = await findSkillFile(localPath);
-      if (skillFile) {
-        const skillName = path.basename(localPath);
-        return [{
-          name: skillName,
-          path: skillFile,
-          directory: localPath,
-          source: meta,
-        }];
+    return result;
+  }
+
+  async cleanup(): Promise<void> {
+    if (this.localPath && this.tempDirs.has(this.localPath)) {
+      try {
+        await fs.remove(this.localPath);
+        this.tempDirs.delete(this.localPath);
+      } catch (error) {
+        console.warn(`Failed to cleanup ${this.localPath}:`, error);
+      }
+    }
+  }
+
+  /**
+   * Resolve source string to Git URL
+   */
+  private async resolveUrl(): Promise<string> {
+    const source = this.source;
+
+    // github:user/repo format
+    if (source.startsWith('github:')) {
+      const parts = source.slice(7).split('/');
+      if (parts.length < 2) {
+        throw new Error(`Invalid GitHub format: ${source}`);
+      }
+      const [owner, name] = parts;
+      return `https://github.com/${owner}/${name}.git`;
+    }
+
+    // user/repo or user/repo:path format
+    if (/^[\w-]+\/[\w-]+(:[\w\/-]*)?$/.test(source)) {
+      const [repoPart] = source.split(':');
+      const [owner, name] = repoPart.split('/');
+      return `https://github.com/${owner}/${name}.git`;
+    }
+
+    // Already a URL
+    if (source.includes('github.com') || source.endsWith('.git')) {
+      return source;
+    }
+
+    throw new Error(`Invalid Git source format: ${source}`);
+  }
+
+  /**
+   * Clone repository to local directory
+   */
+  private async clone(
+    url: string,
+    options: { cacheDir?: string; timeout?: number; shallow?: boolean }
+  ): Promise<string> {
+    const { cacheDir, timeout = this.timeout, shallow = this.shallow } = options;
+
+    // Generate cache directory name
+    const repoName = url.replace(/[^a-zA-Z0-9]/g, '-');
+    const targetDir = cacheDir
+      ? path.join(cacheDir, repoName)
+      : path.join(os.tmpdir(), 'skill-toolbox', repoName);
+
+    // Check if already cached
+    if (cacheDir && await fs.pathExists(targetDir)) {
+      return targetDir;
+    }
+
+    // Clone repository
+    const args = ['clone'];
+    if (shallow) args.push('--depth', '1');
+    args.push(url, targetDir);
+
+    try {
+      await execa('git', args, {
+        timeout,
+        stdio: 'pipe',
+      });
+    } catch (error) {
+      throw new Error(`Failed to clone ${url}: ${error}`);
+    }
+
+    return targetDir;
+  }
+
+  /**
+   * Discover skill directories
+   */
+  private async discoverSkillDirs(): Promise<string[]> {
+    if (!this.localPath) {
+      throw new Error('Repository not cloned');
+    }
+
+    // If skillPath is empty, search root directory
+    if (!this.skillPath || this.skillPath === '') {
+      const entries = await fs.readdir(this.localPath, { withFileTypes: true });
+      const dirs: string[] = [];
+
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name.startsWith('.')) continue;
+
+        const skillFile = await findSkillFile(path.join(this.localPath, entry.name));
+        if (skillFile) {
+          dirs.push(entry.name);
+        }
       }
 
+      return dirs;
+    }
+
+    // Search in specified skillPath
+    const skillsDir = path.join(this.localPath, this.skillPath);
+
+    // Security: Ensure path doesn't escape repository
+    const resolved = path.resolve(this.localPath, this.skillPath);
+    if (!resolved.startsWith(this.localPath)) {
+      throw new Error(`Invalid skill path: escapes repository root`);
+    }
+
+    // Check if directory exists
+    if (!(await fs.pathExists(skillsDir))) {
+      // Check if root is a single skill
+      const rootSkill = await findSkillFile(this.localPath);
+      if (rootSkill) {
+        return [path.basename(this.localPath)];
+      }
       return [];
     }
 
-    // Discover multiple skills in the skills directory
-    const skills: DiscoveredSkill[] = [];
+    // List subdirectories
     const entries = await fs.readdir(skillsDir, { withFileTypes: true });
+    const dirs: string[] = [];
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
 
-      const skillDir = path.join(skillsDir, entry.name);
-      const skillFile = await findSkillFile(skillDir);
-
+      const skillFile = await findSkillFile(path.join(skillsDir, entry.name));
       if (skillFile) {
-        skills.push({
-          name: entry.name,
-          path: skillFile,
-          directory: skillDir,
-          source: meta,
-        });
+        dirs.push(entry.name);
       }
     }
 
-    return skills;
-  }
-
-  async cleanup(localPath: string, _meta?: SkillSourceMeta): Promise<void> {
-    // Remove only the specific temp directory
-    if (this.tempDirs.has(localPath)) {
-      if (await fs.pathExists(localPath)) {
-        await fs.remove(localPath);
-      }
-      this.tempDirs.delete(localPath);
-    }
-  }
-
-  /**
-   * Parse git source string
-   * Supports formats:
-   * - user/repo
-   * - user/repo:path
-   * - github:user/repo
-   * - https://github.com/user/repo.git
-   */
-  private async parseGitSource(source: string): Promise<GitResolvedSource> {
-    // github:user/repo format (path can be empty for root directory)
-    if (source.startsWith('github:')) {
-      const parts = source.slice(7).split('/');
-      if (parts.length < 2) {
-        throw new GitSourceError('Invalid GitHub format', source);
-      }
-      const [owner, nameWithRef] = parts;
-      const [name, skillPath] = nameWithRef.split(':');
-
-      return {
-        url: `https://github.com/${owner}/${name}.git`,
-        repo: { owner, name },
-        // If skillPath is empty string (from "repo:"), use it; otherwise use default
-        skillPath: skillPath !== undefined ? skillPath : this.defaultSkillPath,
-      };
-    }
-
-    // user/repo or user/repo:path format (path can be empty for root directory)
-    if (/^[\w-]+\/[\w-]+(:[\w\/-]*)?$/.test(source)) {
-      const [repoPart, skillPath] = source.split(':');
-      const [owner, name] = repoPart.split('/');
-
-      return {
-        url: `https://github.com/${owner}/${name}.git`,
-        repo: { owner, name },
-        // If skillPath is empty string (from "repo:"), use it; otherwise use default
-        skillPath: skillPath !== undefined ? skillPath : this.defaultSkillPath,
-      };
-    }
-
-    // Full URL format
-    const urlMatch = source.match(/github\.com[\/:]([\w-]+)\/([\w-]+)/);
-    if (urlMatch) {
-      return {
-        url: source,
-        repo: { owner: urlMatch[1], name: urlMatch[2] },
-        skillPath: this.defaultSkillPath,
-      };
-    }
-
-    throw new GitSourceError(`Invalid source format: ${source}`, source);
-  }
-
-  /**
-   * Clone git repository
-   */
-  private async clone(
-    url: string,
-    targetDir: string,
-    options?: { branch?: string }
-  ): Promise<string> {
-    const args = ['clone'];
-    if (this.shallow) args.push('--depth', '1');
-    if (options?.branch) args.push('--branch', options.branch);
-    args.push(url, targetDir);
-
-    await execa('git', args, { timeout: this.timeout, stdio: 'pipe' });
-    return targetDir;
+    return dirs;
   }
 }
