@@ -153,7 +153,7 @@ export class Agent {
     if (this.skills.size > 0) {
       console.log(chalk.bold('Available skills:'));
       for (const [name, skill] of this.skills) {
-        console.log(`  ${chalk.green('•')} ${name} ${chalk.gray(`(v${skill.metadata.version})`)}`);
+        console.log(`  ${chalk.green('•')} ${name}`);
       }
     } else {
       console.log(chalk.yellow('No skills loaded.'));

@@ -19,8 +19,8 @@ export class SkillParser {
    * Parse markdown to IR (exposed for testing)
    */
   async parseToIR(markdown: string): Promise<SkillIR> {
-    // Extract frontmatter
-    const frontmatterMatch = markdown.match(/^---\n([\s\S]*?)\n---/);
+    // Extract frontmatter (support both \n and \r\n line endings)
+    const frontmatterMatch = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---/);
     const frontmatter = frontmatterMatch?.[1];
 
     // Parse markdown to tokens
