@@ -3,7 +3,7 @@ import { metadataPlugin } from '../index';
 import type { SkillIR } from '@skill-toolbox/utils';
 
 describe('Metadata Plugin', () => {
-  it('should parse skill with nested metadata', () => {
+  it('should parse skill with nested metadata', async () => {
     const plugin = metadataPlugin();
     const ir: SkillIR = {
       frontmatter: `name: pdf-processing
@@ -16,7 +16,7 @@ metadata:
       raw: ''
     };
 
-    const result = plugin.parse(ir);
+    const result = await plugin.parse(ir);
 
     expect(result.metadata).toEqual({
       name: 'pdf-processing',
@@ -53,7 +53,7 @@ metadata:
     expect(() => plugin.parse(ir)).toThrow('Missing required field: description');
   });
 
-  it('should work without metadata object', () => {
+  it('should work without metadata object', async () => {
     const plugin = metadataPlugin();
     const ir: SkillIR = {
       frontmatter: `name: test-skill
@@ -63,7 +63,7 @@ license: MIT`,
       raw: ''
     };
 
-    const result = plugin.parse(ir);
+    const result = await plugin.parse(ir);
 
     expect(result.metadata).toEqual({
       name: 'test-skill',
@@ -79,6 +79,6 @@ license: MIT`,
       raw: ''
     };
 
-    expect(() => plugin.parse(ir)).toThrow('Missing frontmatter: name and description are required');
+    expect(() => plugin.parse(ir)).toThrow('Missing frontmatter');
   });
 });

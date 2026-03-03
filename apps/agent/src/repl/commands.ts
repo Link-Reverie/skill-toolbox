@@ -1,11 +1,8 @@
 import fs from 'fs-extra';
 import path from 'path';
 import chalk from 'chalk';
-import { SkillParser } from '@skill-toolbox/core';
-import { metadataPlugin } from '@skill-toolbox/plugin-metadata';
 import type { Skill } from '@skill-toolbox/utils';
 import { GitSource } from '@skill-toolbox/git-source';
-import { findSkillFile } from '@skill-toolbox/utils';
 
 export interface CommandContext {
   skills: Map<string, Skill>;
@@ -66,56 +63,54 @@ export const commands: Record<string, { description: string; handler: CommandHan
 
       console.log(chalk.cyan(`\nInstalling skill from ${source}...`));
 
-      const gitSource = new GitSource();
-      let tempDir: string | undefined;
+      const gitSource = new GitSource({
+        source,
+        skillPath: '', // Auto-discover skills in root directory
+      });
 
       try {
-        // Resolve the source
-        const resolved = await gitSource.resolve(source);
-        console.log(`Resolved to: ${resolved.url}`);
+        // Load skills from the Git source
+        const result = await gitSource.load();
 
-        // Clone to temp directory
-        tempDir = await gitSource.clone(resolved.url);
-        console.log('Cloned successfully');
-
-        // Parse skill to get name
-        const skillFile = await findSkillFile(tempDir);
-        if (!skillFile) {
-          throw new Error('No skill file found in repository');
+        if (result.errors.length > 0) {
+          for (const err of result.errors) {
+            console.log(chalk.red(`Error: ${err.error.message}`));
+          }
+          return;
         }
 
-        const markdown = await fs.readFile(skillFile, 'utf-8');
-        const parser = new SkillParser().use(metadataPlugin());
-        const skill = await parser.parse(markdown);
-
-        if (!skill || !skill.metadata.name) {
-          throw new Error('Invalid skill: missing name');
+        if (result.skills.length === 0) {
+          console.log(chalk.yellow('No skills found in repository'));
+          return;
         }
 
-        const skillName = skill.metadata.name;
-        const targetDir = path.join(skillsDir, skillName);
+        // Install each skill
+        const installedSkills: string[] = [];
+        for (const skillData of result.skills) {
+          const targetDir = path.join(skillsDir, skillData.baseName);
 
-        // Check if skill already exists
-        if (await fs.pathExists(targetDir)) {
-          console.log(chalk.yellow(`Skill "${skillName}" already exists, updating...`));
-          await fs.remove(targetDir);
+          // Check if skill already exists
+          if (await fs.pathExists(targetDir)) {
+            console.log(chalk.yellow(`Skill "${skillData.baseName}" already exists, updating...`));
+            await fs.remove(targetDir);
+          }
+
+          // Copy to skills directory
+          await fs.copy(skillData.directory, targetDir);
+          installedSkills.push(skillData.baseName);
         }
 
-        // Copy to skills directory
-        await fs.copy(tempDir, targetDir);
-        console.log(chalk.green(`\n✓ Skill "${skillName}" installed successfully!\n`));
+        console.log(chalk.green(`\n✓ ${installedSkills.length} skill(s) installed successfully!`));
+        for (const name of installedSkills) {
+          console.log(chalk.gray(`  • ${name}`));
+        }
+        console.log();
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         console.log(chalk.red(`\nFailed to install skill: ${message}\n`));
       } finally {
-        // Clean up temp directory
-        if (tempDir) {
-          try {
-            await fs.remove(tempDir);
-          } catch (error) {
-            // Ignore cleanup errors
-          }
-        }
+        // Clean up temp resources
+        await gitSource.cleanup();
       }
       return;
     },

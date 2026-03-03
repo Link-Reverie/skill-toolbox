@@ -47,7 +47,6 @@ export function createBashTool(config: BashToolConfig): { tool: Tool; executor: 
 
     for (let i = 0; i < command.length; i++) {
       const char = command[i];
-      const nextChar = command[i + 1];
 
       if ((char === '"' || char === "'") && !inQuote) {
         inQuote = true;

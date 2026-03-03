@@ -154,7 +154,7 @@ export class Agent {
     console.log('');
     if (this.skills.size > 0) {
       console.log(chalk.bold('Available skills:'));
-      for (const [name, skill] of this.skills) {
+      for (const [name] of this.skills) {
         console.log(`  ${chalk.green('•')} ${name}`);
       }
     } else {

@@ -1,5 +1,4 @@
 import type { Skill } from '@skill-toolbox/utils';
-import path from 'path';
 
 export interface SourceLocation {
   name: string;

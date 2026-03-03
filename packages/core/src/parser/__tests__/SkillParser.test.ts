@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { SkillParser } from '../SkillParser';
-import type { SkillIR } from '@skill-toolbox/utils';
 
 describe('SkillParser', () => {
   it('should parse basic markdown to IR', async () => {

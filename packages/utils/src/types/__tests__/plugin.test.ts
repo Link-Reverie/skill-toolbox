@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { SkillPlugin, SkillIR } from '../plugin';
+import type { SkillPlugin } from '../plugin';
+import type { SkillIR } from '../skill';
 
 describe('Plugin Types', () => {
   it('should accept valid SkillPlugin', () => {
