@@ -1,4 +1,4 @@
-import type { Skill, SkillSource } from '@skill-toolbox/utils';
+import type { Skill, SkillSource, LoadedSourceInfo } from '@skill-toolbox/utils';
 import { SkillParser } from './parser';
 
 /**
@@ -19,6 +19,8 @@ export interface LoadAllResult {
   skills: Map<string, Skill>;
   /** Errors encountered (key: path or source identifier) */
   errors: Map<string, Error>;
+  /** Loaded source info (key: source identifier) */
+  sources: Map<string, LoadedSourceInfo>;
 }
 
 /**
@@ -52,16 +54,20 @@ export class SkillLoader {
    * - Failed sources are skipped (doesn't stop loading other sources)
    * - All sources are cleaned up automatically
    *
-   * @returns Loaded skills and errors
+   * @returns Loaded skills, errors, and source info
    */
   async loadAll(): Promise<LoadAllResult> {
     const skills = new Map<string, Skill>();
     const errors = new Map<string, Error>();
+    const loadedSources = new Map<string, LoadedSourceInfo>();
 
     // Load from each source
     for (const source of this.sources) {
       try {
         const result = await source.load();
+
+        // Store loaded source info
+        loadedSources.set(result.info.identifier, result.info);
 
         // Parse each skill
         for (const skillData of result.skills) {
@@ -97,6 +103,6 @@ export class SkillLoader {
       )
     );
 
-    return { skills, errors };
+    return { skills, errors, sources: loadedSources };
   }
 }

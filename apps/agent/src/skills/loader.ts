@@ -4,7 +4,7 @@ import { GitSource } from '@skill-toolbox/git-source';
 import { DiscoverySource } from '@skill-toolbox/discovery-source';
 import { HttpSource } from '@skill-toolbox/http-source';
 import { metadataPlugin } from '@skill-toolbox/plugin-metadata';
-import type { Skill, SkillSource } from '@skill-toolbox/utils';
+import type { Skill, SkillSource, LoadedSourceInfo } from '@skill-toolbox/utils';
 import type { SourceLocation } from './prompt';
 import path from 'path';
 import os from 'os';
@@ -25,6 +25,7 @@ export interface SkillLoaderOptions {
 export class SkillLoader {
   private loader: CoreSkillLoader;
   private sources: SkillSource[];
+  private loadedSources: Map<string, LoadedSourceInfo> | null = null;
 
   constructor(options: SkillLoaderOptions | string) {
     // Support legacy string parameter
@@ -91,24 +92,11 @@ export class SkillLoader {
     });
   }
 
-  /**
-   * Build source locations from the sources' own information
-   * Note: path is only available after load(), so we use placeholder
-   */
-  private buildSourceLocations(): SourceLocation[] {
-    return this.sources.map(source => {
-      const info = source.getSourceInfo();
-
-      return {
-        name: info.identifier,
-        path: '<not-loaded>',  // Path available after load() via LoadedSourceInfo
-        type: info.category,
-      };
-    });
-  }
-
   async loadAll(): Promise<Map<string, Skill>> {
-    const { skills, errors } = await this.loader.loadAll();
+    const { skills, errors, sources } = await this.loader.loadAll();
+
+    // Store loaded source info for later use
+    this.loadedSources = sources;
 
     // Log any errors (errors is a Map<string, Error>)
     for (const [sourcePath, error] of errors) {
@@ -120,8 +108,26 @@ export class SkillLoader {
 
   /**
    * Get the source locations for system prompt generation
+   * Must be called after loadAll() to get actual paths
    */
   getSourceLocations(): SourceLocation[] {
-    return this.buildSourceLocations();
+    if (!this.loadedSources) {
+      // Not loaded yet, return placeholder with source identifiers
+      return this.sources.map(source => {
+        const info = source.getSourceInfo();
+        return {
+          name: info.identifier,
+          path: '<not-loaded>',
+          type: info.category,
+        };
+      });
+    }
+
+    // Use actual loaded paths
+    return Array.from(this.loadedSources.values()).map(info => ({
+      name: info.identifier,
+      path: info.path,
+      type: info.category,
+    }));
   }
 }
