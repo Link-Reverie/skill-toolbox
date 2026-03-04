@@ -1,6 +1,6 @@
 {
   "name": "@skill-toolbox/filesystem-source",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "Filesystem source adapter for skill-toolbox",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

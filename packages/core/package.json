@@ -1,6 +1,6 @@
 {
   "name": "@skill-toolbox/core",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "Core parsing engine and plugin system for skill-toolbox",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

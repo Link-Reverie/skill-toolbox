@@ -1,6 +1,6 @@
 {
   "name": "@skill-toolbox/plugin-metadata",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "Metadata plugin for parsing YAML frontmatter",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
