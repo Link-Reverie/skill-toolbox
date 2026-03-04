@@ -1,5 +1,12 @@
 import { marked } from 'marked';
 import type { Skill, SkillIR, SkillPlugin } from '@skill-toolbox/utils';
+import {
+  extractMetadata,
+  extractSections,
+  extractCodeBlocks,
+  extractDependencies,
+  extractReferences,
+} from '@skill-toolbox/utils';
 import { PluginManager } from '../plugin';
 
 /**
@@ -67,11 +74,11 @@ export class SkillParser {
    */
   private irToSkill(ir: SkillIR): Skill {
     return {
-      metadata: (ir.metadata as any) || { name: '', version: '' },
-      sections: (ir.sections as any) || [],
-      codeBlocks: (ir.codeBlocks as any) || [],
-      dependencies: (ir.dependencies as any) || [],
-      references: (ir.references as any) || [],
+      metadata: extractMetadata(ir),
+      sections: extractSections(ir),
+      codeBlocks: extractCodeBlocks(ir),
+      dependencies: extractDependencies(ir),
+      references: extractReferences(ir),
       raw: {
         markdown: ir.raw
       }
