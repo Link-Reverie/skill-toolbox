@@ -22,19 +22,25 @@
     "version:minor": "pnpm -r exec -- npm version minor --no-git-tag-version",
     "version:major": "pnpm -r exec -- npm version major --no-git-tag-version"
   },
-  "keywords": ["skill", "claude", "agent", "toolbox", "monorepo"],
+  "keywords": [
+    "skill",
+    "claude",
+    "agent",
+    "toolbox",
+    "monorepo"
+  ],
   "engines": {
     "node": ">=18.0.0",
     "pnpm": ">=8.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
-    "typescript": "^5.3.3",
-    "vitest": "^1.2.0",
-    "@typescript-eslint/parser": "^6.19.0",
-    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/eslint-plugin": "^8.56.1",
+    "@typescript-eslint/parser": "^8.56.1",
     "eslint": "^8.56.0",
-    "prettier": "^3.2.4"
+    "prettier": "^3.2.4",
+    "typescript": "^5.3.3",
+    "vitest": "^4.0.18"
   },
   "packageManager": "pnpm@8.15.0"
 }
