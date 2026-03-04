@@ -106,7 +106,10 @@ export class DiscoverySource implements SkillSource {
       errors,
       info: {
         ...this.getSourceInfo(),
-        path: this.foundDirs.join(','),
+        // Return first found dir as primary path, or empty if none
+        path: this.foundDirs.length > 0 ? this.foundDirs[0] : '',
+        // Store all found dirs in metadata
+        metadata: { allDirs: this.foundDirs },
       },
     };
   }

@@ -26,6 +26,8 @@ export interface SourceInfo {
 export interface LoadedSourceInfo extends SourceInfo {
   /** Actual path to the source location (resolved after load) */
   path: string;
+  /** Optional metadata (source-specific) */
+  metadata?: Record<string, any>;
 }
 
 /**
