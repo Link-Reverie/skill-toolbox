@@ -88,7 +88,19 @@ export class DiscoverySource implements SkillSource {
     }
 
     // 3. Load skills from each discovered directory
+    // Track the first skills directory found for the source path
+    let firstSkillsDir = '';
+    const allSkillsDirs: string[] = [];
+
     for (const dir of this.foundDirs) {
+      const skillsDir = join(dir, 'skills');
+      if (await isDirectory(skillsDir)) {
+        if (!firstSkillsDir) {
+          firstSkillsDir = skillsDir;
+        }
+        allSkillsDirs.push(skillsDir);
+      }
+
       const dirSkills = await this.loadSkillsFromDir(dir);
       for (const skill of dirSkills) {
         // Check for duplicates (later overwrites earlier)
@@ -106,10 +118,10 @@ export class DiscoverySource implements SkillSource {
       errors,
       info: {
         ...this.getSourceInfo(),
-        // Return first found dir as primary path, or empty if none
-        path: this.foundDirs.length > 0 ? this.foundDirs[0] : '',
-        // Store all found dirs in metadata
-        metadata: { allDirs: this.foundDirs },
+        // Return first skills directory as primary path (not external dir)
+        path: firstSkillsDir,
+        // Store all skills dirs and external dirs in metadata
+        metadata: { allSkillsDirs, externalDirs: this.foundDirs },
       },
     };
   }
