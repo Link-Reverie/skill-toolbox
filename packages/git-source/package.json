@@ -1,6 +1,6 @@
 {
   "name": "@skill-toolbox/git-source",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Git repository source adapter for skill-toolbox",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
