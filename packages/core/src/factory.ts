@@ -197,8 +197,11 @@ export function createSources(
           forceRefresh: config.forceRefresh,
         });
 
-      default:
-        throw new Error(`Unknown source type: ${(config as any).type}`);
+      default: {
+        // Compile-time exhaustiveness check
+        const _exhaustiveCheck: never = config;
+        throw new Error(`Unknown source type: ${(_exhaustiveCheck as any).type}`);
+      }
     }
   });
 }
