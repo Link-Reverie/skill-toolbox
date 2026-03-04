@@ -58,10 +58,66 @@ class MockGitSource implements SkillSource {
   async cleanup(): Promise<void> {}
 }
 
+class MockDiscoverySource implements SkillSource {
+  constructor(_options: { projectDir?: string; worktreeRoot?: string; externalDirs?: string[]; includeGlobal?: boolean; includeProject?: boolean }) {}
+
+  getSourceInfo(): SourceInfo {
+    return {
+      type: 'filesystem',
+      category: 'local',
+      identifier: 'discovery',
+    };
+  }
+
+  async load(): Promise<SourceLoadResult> {
+    return {
+      skills: [],
+      errors: [],
+      info: {
+        type: 'filesystem',
+        category: 'local',
+        identifier: 'discovery',
+        path: '/mock/discovery',
+      },
+    };
+  }
+
+  async cleanup(): Promise<void> {}
+}
+
+class MockHttpSource implements SkillSource {
+  constructor(private options: { url: string; name?: string; cacheDir?: string; timeout?: number }) {}
+
+  getSourceInfo(): SourceInfo {
+    return {
+      type: 'git',
+      category: 'global',
+      identifier: this.options.name || this.options.url,
+    };
+  }
+
+  async load(): Promise<SourceLoadResult> {
+    return {
+      skills: [],
+      errors: [],
+      info: {
+        type: 'git',
+        category: 'global',
+        identifier: this.getSourceInfo().identifier,
+        path: '/mock/http',
+      },
+    };
+  }
+
+  async cleanup(): Promise<void> {}
+}
+
 describe('createSources', () => {
   const imports = {
     FilesystemSource: MockFilesystemSource as any,
     GitSource: MockGitSource as any,
+    DiscoverySource: MockDiscoverySource as any,
+    HttpSource: MockHttpSource as any,
   };
 
   it('should create filesystem source with minimal config', () => {
