@@ -162,24 +162,6 @@ describe('FilesystemSource', () => {
       expect(result.errors.length).toBe(0);
     });
 
-    it('should load skill from README.md', async () => {
-      const skillDir = path.join(tempDir, 'readme-skill');
-      await fs.ensureDir(skillDir);
-      await fs.writeFile(
-        path.join(skillDir, 'README.md'),
-        '---\nname: readme-skill\nversion: 1.0.0\n---\n# README Skill'
-      );
-
-      source = new FilesystemSource({
-        path: skillDir,
-      });
-
-      const result = await source.load();
-
-      expect(result.skills.length).toBe(1);
-      expect(result.skills[0].baseName).toBe('readme-skill');
-    });
-
     it('should skip hidden directories', async () => {
       // Create visible and hidden skill directories
       const visibleDir = path.join(tempDir, 'visible-skill');

@@ -4,7 +4,7 @@ import path from 'path';
 /**
  * Default skill file candidates to search for
  */
-const SKILL_FILE_CANDIDATES = ['SKILL.md', 'skill.md', 'README.md', 'readme.md'];
+const SKILL_FILE_CANDIDATES = ['SKILL.md', 'skill.md'];
 
 /**
  * Find skill file in a directory

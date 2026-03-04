@@ -178,6 +178,6 @@ export class FilesystemSource implements SkillSource {
    */
   private isSkillFileName(name: string): boolean {
     const lower = name.toLowerCase();
-    return lower === 'skill.md' || lower === 'readme.md';
+    return lower === 'skill.md';
   }
 }
