@@ -112,7 +112,7 @@ export class HttpSource implements SkillSource {
       throw new Error(`Failed to fetch index: ${response.status}`);
     }
 
-    const index: RemoteSkillIndex = await response.json();
+    const index = (await response.json()) as RemoteSkillIndex;
 
     // 2. Create cache directory
     await mkdir(this.cachePath, { recursive: true });
