@@ -6,6 +6,10 @@ Filesystem source adapter for skill-toolbox. Enables loading skills from local d
 
 ```bash
 npm install @skill-toolbox/filesystem-source
+# or
+pnpm add @skill-toolbox/filesystem-source
+# or
+yarn add @skill-toolbox/filesystem-source
 ```
 
 ## Usage
@@ -14,31 +18,48 @@ npm install @skill-toolbox/filesystem-source
 
 ```typescript
 import { FilesystemSource } from '@skill-toolbox/filesystem-source';
+import { SkillLoader } from '@skill-toolbox/core';
 
-const source = new FilesystemSource();
-
-// Check if source can handle a path
-const canHandle = await source.canHandle('/path/to/skills');
-
-// Resolve path to metadata
-const meta = await source.resolve('/path/to/skills');
-
-// Fetch (validates path exists)
-const localPath = await source.fetch(meta);
-
-// Discover skills
-const skills = await source.discover(localPath, meta);
-```
-
-### With Custom Working Directory
-
-```typescript
-const source = new FilesystemSource({
-  cwd: '/base/directory'
+// Create a filesystem source
+const fsSource = new FilesystemSource({
+  path: './skills',
 });
 
-// Now relative paths are resolved from cwd
-const meta = await source.resolve('./skills');
+// Use with SkillLoader
+const loader = new SkillLoader({ sources: [fsSource] });
+const skills = await loader.loadAll();
+```
+
+### With Options
+
+```typescript
+import { FilesystemSource } from '@skill-toolbox/filesystem-source';
+
+const fsSource = new FilesystemSource({
+  // Path to skills directory or file (required)
+  path: './skills',
+
+  // Display name (default: 'filesystem' or 'global' for global skills)
+  name: 'my-local-skills',
+
+  // Category (default: 'local' or 'global' based on name)
+  category: 'local',
+});
+```
+
+### Using with Factory
+
+```typescript
+import { createSources } from '@skill-toolbox/core';
+import { FilesystemSource } from '@skill-toolbox/filesystem-source';
+
+const sources = createSources(
+  [
+    { type: 'filesystem', path: './skills', name: 'local' },
+    { type: 'filesystem', path: '~/.claude/skills', name: 'global' },
+  ],
+  { FilesystemSource }
+);
 ```
 
 ## Features
@@ -46,38 +67,78 @@ const meta = await source.resolve('./skills');
 - **Single Skill Loading**: Load a skill from a directory containing a SKILL.md file
 - **Multi-Skill Discovery**: Discover multiple skills in subdirectories
 - **Direct File Loading**: Load a skill directly from a SKILL.md file
-- **Relative Path Support**: Use relative paths with custom working directory
+- **Relative Path Support**: Use relative paths resolved from current directory
+- **Global Skills**: Load skills from global directories like `~/.claude/skills`
+
+## Skill Discovery
+
+The filesystem source discovers skills by:
+
+1. **Directory with SKILL.md**: If the path points to a directory containing `SKILL.md`, loads that single skill
+2. **Directory with subdirectories**: If the path points to a directory with subdirectories, discovers all skills in subdirectories that contain `SKILL.md`
+3. **Direct file**: If the path points to a `.md` file, loads it directly as a skill
+
+### Example directory structure
+
+```
+skills/
+├── SKILL.md              # Single skill mode
+└── subdirectory/
+    ├── SKILL.md          # Discovered as separate skill
+    └── other-file.md
+```
+
+## Source Info
+
+The source provides the following info:
+
+```typescript
+{
+  type: 'filesystem',
+  category: 'local', // or 'global'
+  identifier: 'my-local-skills', // or provided name
+  path: '/absolute/path/to/skills'
+}
+```
 
 ## API
 
-### `FilesystemSource`
+### `constructor(options: FilesystemSourceOptions)`
 
-#### Constructor
+Creates a new FilesystemSource instance.
 
+#### Options
+
+- `path: string` - **Required**. Path to skills directory or file
+- `name?: string` - Display name (default: `'filesystem'` or `'global'`)
+- `category?: SourceCategory` - Category override (default: inferred from name)
+
+### `load(): Promise<SourceLoadResult>`
+
+Loads skills from the configured path.
+
+### `getSourceInfo(): SourceInfo`
+
+Returns source metadata.
+
+### `cleanup(): Promise<void>`
+
+Cleanup resources (no-op for this source).
+
+## Error Handling
+
+The source handles various error scenarios:
+- Path does not exist
+- Invalid skill files
+- Permission errors
+
+Errors are returned in the `errors` array of `SourceLoadResult`:
 ```typescript
-constructor(options?: FilesystemSourceOptions)
+const result = await fsSource.load();
+if (result.errors.length > 0) {
+  console.error('Failed to load skills:', result.errors);
+}
 ```
-
-**Options:**
-- `cwd` - Base directory for relative paths (default: `process.cwd()`)
-
-#### Methods
-
-##### `canHandle(source: string): Promise<boolean>`
-
-Check if the source string is a valid filesystem path.
-
-##### `resolve(source: string): Promise<SkillSourceMeta>`
-
-Resolve the source string to metadata.
-
-##### `fetch(meta: SkillSourceMeta, options?: FetchOptions): Promise<string>`
-
-Validate and return the path (no actual fetching needed for filesystem).
-
-##### `discover(localPath: string, meta: SkillSourceMeta): Promise<DiscoveredSkill[]>`
-
-Discover skills in the given path.
 
 ## License
 
