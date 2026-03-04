@@ -60,24 +60,11 @@ function isSkillIRMetadata(obj: unknown): obj is SkillIRMetadata {
 **优先级**: P1
 **工时**: 1h
 
-**任务**:
-- [ ] 在 `factory.ts` 中添加 `default` 分支类型检查
-- [ ] 使用 `never` 类型确保所有 case 都处理
+**完成内容**:
+- [x] 在 `factory.ts` 中添加 `default` 分支类型检查
+- [x] 使用 `never` 类型确保所有 case 都处理
 
-```typescript
-function assertNever(x: never): never {
-  throw new Error('Unexpected object: ' + x);
-}
-
-switch (config.type) {
-  case 'filesystem': /* ... */ break;
-  case 'git': /* ... */ break;
-  case 'discovery': /* ... */ break;
-  case 'http': /* ... */ break;
-  default:
-    assertNever(config); // 编译时检查
-}
-```
+**提交**: 8127b5c
 
 ---
 
@@ -214,7 +201,41 @@ discovery-source 使用 `.cjs` 扩展名，其他包使用 `.js`
 
 ## ✅ Done (已完成)
 
-暂无
+### 类型安全工程师
+
+#### TS-1: 修复 SkillParser 类型安全 🔴 CRITICAL
+**优先级**: P0
+**工时**: 4h
+**文件**: `packages/core/src/parser/SkillParser.ts`
+
+**完成内容**:
+- [x] 移除所有 `as any` 类型转换
+- [x] 创建 `packages/utils/src/types/type-guards.ts`
+- [x] 添加类型守卫函数（`isSkillMetadata`, `isSkillSection` 等）
+- [x] 添加 `extract*` 辅助函数用于类型安全的 IR 字段访问
+- [x] TypeScript 严格模式无错误
+
+**提交**:
+- d03e32b: fix: remove `as any` type casts in SkillParser
+- 1dc1374: fix: add DiscoverySource and HttpSource mocks to factory tests
+
+---
+
+#### TS-2: 添加类型守卫函数
+**优先级**: P1
+**工时**: 2h
+
+**完成内容**:
+- [x] 创建 `packages/utils/src/types/type-guards.ts`
+- [x] 实现 `isSkillMetadata()`
+- [x] 实现 `isSkillSection()`
+- [x] 实现 `isSkillCodeBlock()`
+- [x] 实现 `isSkillDependency()`
+- [x] 实现 `isSkillReference()`
+- [x] 添加 `extract*` 辅助函数
+- [x] 导出所有类型守卫
+
+**提交**: 已包含在 TS-1 中
 
 ---
 
@@ -228,9 +249,10 @@ discovery-source 使用 `.cjs` 扩展名，其他包使用 `.js`
 
 - **总任务数**: 14
 - **进行中**: 0
-- **待开始**: 14
-- **已完成**: 0
+- **待开始**: 11
+- **已完成**: 3
 - **总工时**: 38h
+- **已完成工时**: 7h
 - **预计完成**: 1周
 
 ---
