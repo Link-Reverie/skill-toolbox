@@ -9,6 +9,8 @@
     "test": "pnpm -r run test",
     "lint": "pnpm -r run lint",
     "clean": "pnpm -r run clean",
+    "docs": "typedoc",
+    "docs:watch": "typedoc --watch",
     "cli": "pnpm --filter @skill-toolbox/cli run dev",
     "cli:build": "pnpm --filter @skill-toolbox/cli run build",
     "publish:utils": "pnpm --filter @skill-toolbox/utils publish --access public --provenance",
@@ -41,6 +43,7 @@
     "@typescript-eslint/parser": "^8.56.1",
     "eslint": "^8.56.0",
     "prettier": "^3.2.4",
+    "typedoc": "^0.28.17",
     "typescript": "^5.3.3",
     "vitest": "^4.0.18"
   },

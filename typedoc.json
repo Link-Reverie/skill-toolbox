@@ -1,0 +1,58 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "packages/utils/src/index.ts",
+    "packages/core/src/index.ts",
+    "packages/filesystem-source/src/index.ts",
+    "packages/git-source/src/GitSource.ts",
+    "packages/plugins/metadata/src/index.ts",
+    "packages/sources/discovery/src/index.ts",
+    "packages/sources/http/src/index.ts"
+  ],
+  "out": "docs/api",
+  "plugin": [],
+  "theme": "default",
+  "readme": "./README.md",
+  "name": "Skill Toolbox API Documentation",
+  "includeVersion": true,
+  "excludePrivate": true,
+  "excludeProtected": false,
+  "excludeExternals": true,
+  "excludeNotDocumented": false,
+  "disableSources": false,
+  "toc": [
+    {
+      "title": "Core",
+      "children": ["@skill-toolbox/utils", "@skill-toolbox/core"]
+    },
+    {
+      "title": "Sources",
+      "children": [
+        "@skill-toolbox/filesystem-source",
+        "@skill-toolbox/git-source",
+        "@skill-toolbox/discovery-source",
+        "@skill-toolbox/http-source"
+      ]
+    },
+    {
+      "title": "Plugins",
+      "children": ["@skill-toolbox/plugin-metadata"]
+    }
+  ],
+  "categorizeByGroup": true,
+  "categoryOrder": [
+    "Core",
+    "Sources",
+    "Plugins",
+    "*"
+  ],
+  "sort": ["alphabetical"],
+  "visibilityFilters": {
+    "protected": true,
+    "private": false,
+    "inherited": true,
+    "external": false
+  },
+  "searchInComments": true,
+  "cleanOutputDir": true
+}
