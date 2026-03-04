@@ -7,14 +7,22 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
-      "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.js"
+    },
+    "./factory": {
+      "types": "./dist/factory.d.ts",
+      "import": "./dist/factory.mjs",
+      "require": "./dist/factory.js"
     }
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
-    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts src/factory.ts --format cjs,esm --dts --watch",
+    "build": "tsup src/index.ts src/factory.ts --format cjs,esm --dts",
     "test": "vitest run",
     "test:watch": "vitest",
     "clean": "rm -rf dist *.tsbuildinfo"
@@ -26,5 +34,28 @@
   "devDependencies": {
     "tsup": "^8.0.0",
     "vitest": "^1.2.0"
-  }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Link-Reverie/skill-toolbox.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/Link-Reverie/skill-toolbox/issues"
+  },
+  "homepage": "https://github.com/Link-Reverie/skill-toolbox#readme",
+  "license": "MIT",
+  "keywords": [
+    "skill",
+    "ai-agent",
+    "claude",
+    "llm",
+    "typescript",
+    "parser",
+    "plugin"
+  ]
 }
