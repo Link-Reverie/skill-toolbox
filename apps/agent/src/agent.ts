@@ -34,7 +34,13 @@ export class Agent {
       config.maxTokens,
       config.baseURL
     );
-    this.skillLoader = new SkillLoader(config.skillsDir);
+    this.skillLoader = new SkillLoader({
+      skillsDir: config.skillsDir,
+      enableDiscovery: config.enableDiscovery,
+      enableHttp: config.enableHttp,
+      httpUrls: config.httpUrls,
+      projectDir: config.projectDir,
+    });
   }
 
   /**

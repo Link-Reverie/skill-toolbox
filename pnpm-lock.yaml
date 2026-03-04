@@ -38,12 +38,18 @@ importers:
       '@skill-toolbox/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@skill-toolbox/discovery-source':
+        specifier: workspace:*
+        version: link:../../packages/sources/discovery
       '@skill-toolbox/filesystem-source':
         specifier: workspace:*
         version: link:../../packages/filesystem-source
       '@skill-toolbox/git-source':
         specifier: workspace:*
         version: link:../../packages/git-source
+      '@skill-toolbox/http-source':
+        specifier: workspace:*
+        version: link:../../packages/sources/http
       '@skill-toolbox/plugin-metadata':
         specifier: workspace:*
         version: link:../../packages/plugins/metadata
@@ -203,6 +209,44 @@ importers:
       tsup:
         specifier: ^8.0.0
         version: 8.5.1(tsx@4.21.0)(typescript@5.9.3)
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.35)
+
+  packages/sources/discovery:
+    dependencies:
+      '@skill-toolbox/utils':
+        specifier: workspace:*
+        version: link:../../utils
+    devDependencies:
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.19.35
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.35)
+
+  packages/sources/http:
+    dependencies:
+      '@skill-toolbox/utils':
+        specifier: workspace:*
+        version: link:../../utils
+    devDependencies:
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.19.35
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
       vitest:
         specifier: ^1.2.0
         version: 1.6.1(@types/node@20.19.35)

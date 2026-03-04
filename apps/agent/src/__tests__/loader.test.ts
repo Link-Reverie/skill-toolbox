@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SkillLoader } from '../skills/loader';
 import fs from 'fs-extra';
 import path from 'path';
@@ -10,15 +10,11 @@ describe('SkillLoader', () => {
     await fs.remove(testSkillsDir);
   });
 
-  it('should still load from other sources when local skills directory does not exist', async () => {
-    const loader = new SkillLoader(testSkillsDir);
-    const skills = await loader.loadAll();
-    // The loader loads from multiple sources (local, global, git)
-    // so even if local doesn't exist, we get skills from git
-    expect(skills.size).toBeGreaterThan(0);
+  afterEach(async () => {
+    await fs.remove(testSkillsDir);
   });
 
-  it('should load skill from directory', async () => {
+  it('should load skills from local directory', async () => {
     // Create test skill with proper frontmatter
     const skillDir = path.join(testSkillsDir, 'test-skill');
     await fs.ensureDir(skillDir);
@@ -32,11 +28,16 @@ version: 1.0.0
 # Test Skill`
     );
 
-    const loader = new SkillLoader(testSkillsDir);
+    // Disable discovery and git to test local only
+    const loader = new SkillLoader({
+      skillsDir: testSkillsDir,
+      enableDiscovery: false,
+      enableHttp: false,
+      projectDir: testSkillsDir, // Limit discovery scope
+    });
     const skills = await loader.loadAll();
 
-    // Check that our local skill was loaded (along with git skills)
-    // The skill name includes the source prefix
+    // Check that our local skill was loaded
     const skillNames = Array.from(skills.keys());
     const testSkillKey = skillNames.find(key => key.includes('test-skill'));
     expect(testSkillKey).toBeDefined();
@@ -44,7 +45,18 @@ version: 1.0.0
     const skill = skills.get(testSkillKey!)!;
     expect(skill.metadata.name).toBe('test-skill');
     expect(skill.metadata.version).toBe('1.0.0');
+  });
 
-    await fs.remove(testSkillsDir);
+  it('should handle missing local directory gracefully', async () => {
+    // Disable all remote sources to test error handling
+    const loader = new SkillLoader({
+      skillsDir: './non-existent-dir',
+      enableDiscovery: false,
+      enableHttp: false,
+      projectDir: './non-existent-dir',
+    });
+    const skills = await loader.loadAll();
+    // Should not throw, just return empty map
+    expect(skills.size).toBe(0);
   });
 });
