@@ -68,6 +68,19 @@ function isSkillIRMetadata(obj: unknown): obj is SkillIRMetadata {
 
 ---
 
+#### TE-2: 统一导出格式
+**优先级**: P1
+**工时**: 2h
+
+**完成内容**:
+- [x] 添加 `type: "module"` 到 filesystem-source 和 git-source
+- [x] 统一所有包的 exports 格式（`.cjs` for CommonJS, `.js` for ES modules）
+- [x] 验证所有测试通过
+
+**提交**: a76dde5
+
+---
+
 ### 测试工程师
 
 #### TE-1: CLI 集成测试 🔴 CRITICAL
@@ -249,10 +262,10 @@ discovery-source 使用 `.cjs` 扩展名，其他包使用 `.js`
 
 - **总任务数**: 14
 - **进行中**: 0
-- **待开始**: 11
-- **已完成**: 3
+- **待开始**: 10
+- **已完成**: 4
 - **总工时**: 38h
-- **已完成工时**: 7h
+- **已完成工时**: 9h
 - **预计完成**: 1周
 
 ---
