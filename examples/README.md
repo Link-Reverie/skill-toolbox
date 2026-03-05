@@ -1,4 +1,117 @@
-# GitSource 快速参考
+# Skill Examples
+
+This directory contains example skills demonstrating various plugin capabilities.
+
+## 📦 Plugin Demo Skills
+
+### 1. **deployment-guide** - Variables Plugin
+Demonstrates variable replacement for multi-environment deployment.
+
+```bash
+# Variables used:
+{{project_name}}, {{version}}, {{environment}}, {{api_key}}
+```
+
+**Features:**
+- Environment-specific configuration
+- Secure credential handling
+- Dynamic content generation
+
+---
+
+### 2. **code-review-i18n** - i18n Plugin
+Multi-language code review guidelines.
+
+```bash
+# Supported locales:
+en (English), zh-CN (Chinese), ja (Japanese)
+```
+
+**Features:**
+- Single skill, multiple languages
+- Auto-detect system locale
+- Locale-specific content
+
+---
+
+### 3. **data-pipeline** - Code Extractor & Dependencies
+Complete data processing pipeline with Python and TypeScript.
+
+**Features:**
+- Code block extraction with metadata
+- Dependency detection from imports
+- Command extraction from bash scripts
+- Test case extraction
+
+---
+
+### 4. **dangerous-skill** - Security Plugin Test
+⚠️ **Contains intentional security vulnerabilities for testing!**
+
+**Detected Issues:**
+- 🔴 Remote code execution (`curl | bash`)
+- 🔴 AWS credentials
+- 🟠 Hardcoded passwords
+- 🟠 `eval()` usage
+
+**Usage:**
+```typescript
+import { securityPlugin } from '../apps/agent/src/plugins';
+
+const parser = new SkillParser([
+  securityPlugin({ failOnError: false })
+]);
+
+// Will detect all security issues
+```
+
+---
+
+## 🚀 Quick Start
+
+### Load Example Skills
+
+```typescript
+import { SkillLoader } from '@skill-toolbox/core';
+import { FilesystemSource } from '@skill-toolbox/filesystem-source';
+
+const loader = new SkillLoader({
+  sources: [
+    new FilesystemSource({
+      path: './examples',
+      category: 'examples'
+    })
+  ]
+});
+
+const { skills } = await loader.loadAll();
+
+console.log(`Loaded ${skills.size} example skills`);
+```
+
+### Test Individual Plugins
+
+```bash
+cd apps/agent
+
+# Test all plugins
+tsx src/plugins/__tests__/plugins.test.ts
+
+# Run agent to load examples
+pnpm dev
+```
+
+---
+
+## 📚 More Information
+
+- [Plugin Documentation](../apps/agent/src/plugins/README.md)
+- [Usage Examples](../apps/agent/PLUGINS_USAGE.md)
+- [Implementation Guide](../apps/agent/PLUGIN_IMPLEMENTATION.md)
+
+---
+
+# GitSource Reference
 
 ## 最常用法
 

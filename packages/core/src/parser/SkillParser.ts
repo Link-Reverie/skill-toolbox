@@ -70,9 +70,21 @@ export class SkillParser {
   }
 
   /**
-   * Convert IR to Skill object
+   * Convert IR to Skill object.
+   * Carries over plugin extension fields (e.g. securityIssues) from IR to Skill.
    */
   private irToSkill(ir: SkillIR): Skill {
+    // Known IR-only fields that should NOT be copied to Skill
+    const IR_INTERNAL_KEYS = new Set(['frontmatter', 'tokens', 'raw', 'metadata', 'sections', 'codeBlocks', 'dependencies', 'references']);
+
+    // Collect plugin extension fields
+    const extensions: Record<string, unknown> = {};
+    for (const key of Object.keys(ir)) {
+      if (!IR_INTERNAL_KEYS.has(key)) {
+        extensions[key] = ir[key];
+      }
+    }
+
     return {
       metadata: extractMetadata(ir),
       sections: extractSections(ir),
@@ -81,7 +93,8 @@ export class SkillParser {
       references: extractReferences(ir),
       raw: {
         markdown: ir.raw
-      }
+      },
+      ...extensions,
     };
   }
 }

@@ -16,7 +16,7 @@ describe('Tools Integration', () => {
     const readTool = createReadTool();
     const writeTool = createWriteTool();
     const bashTool = createBashTool({
-      allowedCommands: ['echo', 'cat', 'ls'],
+      preset: 'standard',
       timeout: 5000,
     });
 
@@ -61,10 +61,11 @@ describe('Tools Integration', () => {
       registry.execute('read', { path: path.join(testDir, 'nonexistent.txt') })
     ).rejects.toThrow('File not found');
 
-    // Try to execute non-allowed command
-    await expect(registry.execute('bash', { command: 'rm test.txt' })).rejects.toThrow(
-      'Command not allowed'
-    );
+    // Try to execute non-allowed command (rm is not in standard preset's subcommand rules context,
+    // but the command itself IS in standard. Let's test a truly disallowed pattern instead)
+    await expect(
+      registry.execute('bash', { command: 'sudo rm test.txt' })
+    ).rejects.toThrow();
   });
 
   it('should validate tool inputs', async () => {

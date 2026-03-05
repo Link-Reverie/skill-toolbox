@@ -93,6 +93,9 @@ export interface Skill {
     path?: string;
     source?: string;
   };
+
+  // ✅ Plugin extension data - allows plugins to add custom fields
+  [key: string]: any;
 }
 
 /**

@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { buildSandboxConfig, type SandboxConfig } from './tools/sandbox';
 
 export interface AgentConfig {
   apiKey: string;
@@ -14,11 +15,8 @@ export interface AgentConfig {
   httpUrls: string[];
   /** Project directory for discovery */
   projectDir?: string;
-  sandbox: {
-    timeout: number;
-    maxMemory: string;
-    allowedCommands: string[];
-  };
+  /** Sandbox configuration for bash tool */
+  sandbox: SandboxConfig;
 }
 
 export function loadConfig(): AgentConfig {
@@ -40,10 +38,6 @@ export function loadConfig(): AgentConfig {
       ? process.env.HTTP_SKILL_URLS.split(',').map(u => u.trim())
       : [],
     projectDir: process.env.PROJECT_DIR || process.cwd(),
-    sandbox: {
-      timeout: parseInt(process.env.SANDBOX_TIMEOUT || '30000', 10),
-      maxMemory: process.env.SANDBOX_MAX_MEMORY || '512MB',
-      allowedCommands: (process.env.ALLOWED_COMMANDS || 'ls,cat,echo,node,npm,pnpm').split(','),
-    },
+    sandbox: buildSandboxConfig(),
   };
 }
