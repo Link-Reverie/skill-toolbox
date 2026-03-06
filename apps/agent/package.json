@@ -16,6 +16,8 @@
     "@skill-toolbox/core": "workspace:*",
     "@skill-toolbox/git-source": "workspace:*",
     "@skill-toolbox/filesystem-source": "workspace:*",
+    "@skill-toolbox/discovery-source": "workspace:*",
+    "@skill-toolbox/http-source": "workspace:*",
     "@skill-toolbox/plugin-metadata": "workspace:*",
     "@skill-toolbox/utils": "workspace:*",
     "chalk": "^5.3.0",

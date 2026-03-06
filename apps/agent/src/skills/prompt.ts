@@ -79,32 +79,28 @@ export function buildSystemPrompt(
 ${skillsSection}
 ${sourceLocationsSection}
 ${findingSkillsSection}
-## Skill File Format
+## How to Use Skills
 
-Skills are defined in SKILL.md or README.md files using the agentskills.io specification:
+You have two dedicated skill tools:
 
-### Required Frontmatter
-\`\`\`yaml
----
-name: skill-name
-description: A clear description of what this skill does
----
+1. **search_skills(query)** — Search skills by keyword. Returns ranked results with names, descriptions, and relevance scores.
+2. **get_skill(name)** — Get the full SKILL.md content by skill name (from cache, very fast). Supports partial names.
+
+**Workflow when the user asks for help:**
+
+1. Call \`search_skills\` with relevant keywords to find matching skills
+2. Call \`get_skill\` with the skill name to read the full instructions
+3. Follow the skill's guidelines to help the user
+
+**Example:**
+\`\`\`
+User: "Help me review this code"
+→ search_skills("code review")
+→ Found: "ComposioHQ/awesome-claude-skills/code-review" (score: 10)
+→ get_skill("ComposioHQ/awesome-claude-skills/code-review")
+→ [Full skill content with guidelines, checklist, examples...]
+→ Apply the skill to help the user
 \`\`\`
 
-### Optional Fields
-- \`version\`: Skill version (e.g., "1.0.0")
-- \`license\`: License information
-- \`author\`: Author information
-
-### Content Structure
-After the frontmatter, provide:
-1. **Overview**: What the skill does and when to use it
-2. **Usage**: How to use the skill (examples, code patterns)
-3. **Best Practices**: Guidelines for effective use
-
-When the user requests help, determine which skill would be most appropriate and use it to assist them.
-
-**Note**: Each skill directory contains a SKILL.md or README.md file with the full skill content. Use the read tool to view the complete skill documentation when needed.
-
-You also have access to tools for file operations and command execution.`;
+You also have tools for file operations (\`read\`, \`write\`) and command execution (\`bash\`).`;
 }

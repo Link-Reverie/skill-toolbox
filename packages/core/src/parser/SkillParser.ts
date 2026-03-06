@@ -1,5 +1,12 @@
 import { marked } from 'marked';
 import type { Skill, SkillIR, SkillPlugin } from '@skill-toolbox/utils';
+import {
+  extractMetadata,
+  extractSections,
+  extractCodeBlocks,
+  extractDependencies,
+  extractReferences,
+} from '@skill-toolbox/utils';
 import { PluginManager } from '../plugin';
 
 /**
@@ -63,18 +70,31 @@ export class SkillParser {
   }
 
   /**
-   * Convert IR to Skill object
+   * Convert IR to Skill object.
+   * Carries over plugin extension fields (e.g. securityIssues) from IR to Skill.
    */
   private irToSkill(ir: SkillIR): Skill {
+    // Known IR-only fields that should NOT be copied to Skill
+    const IR_INTERNAL_KEYS = new Set(['frontmatter', 'tokens', 'raw', 'metadata', 'sections', 'codeBlocks', 'dependencies', 'references']);
+
+    // Collect plugin extension fields
+    const extensions: Record<string, unknown> = {};
+    for (const key of Object.keys(ir)) {
+      if (!IR_INTERNAL_KEYS.has(key)) {
+        extensions[key] = ir[key];
+      }
+    }
+
     return {
-      metadata: (ir.metadata as any) || { name: '', version: '' },
-      sections: (ir.sections as any) || [],
-      codeBlocks: (ir.codeBlocks as any) || [],
-      dependencies: (ir.dependencies as any) || [],
-      references: (ir.references as any) || [],
+      metadata: extractMetadata(ir),
+      sections: extractSections(ir),
+      codeBlocks: extractCodeBlocks(ir),
+      dependencies: extractDependencies(ir),
+      references: extractReferences(ir),
       raw: {
         markdown: ir.raw
-      }
+      },
+      ...extensions,
     };
   }
 }

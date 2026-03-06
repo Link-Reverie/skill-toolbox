@@ -1,6 +1,7 @@
 import yaml from 'js-yaml';
 import type { SkillPlugin, SkillIR, SkillMetadata } from '@skill-toolbox/utils';
 import { ParseError } from '@skill-toolbox/utils';
+import { sanitizeYamlFrontmatter } from './sanitize';
 
 /**
  * Metadata plugin for parsing YAML frontmatter
@@ -27,10 +28,25 @@ export const metadataPlugin = (): SkillPlugin => ({
       throw new ParseError('Missing frontmatter: name and description are required');
     }
 
-    try {
-      // Parse YAML
-      const raw = yaml.load(ir.frontmatter) as Record<string, any>;
+    let raw: Record<string, any>;
 
+    try {
+      // Try standard YAML parsing first
+      raw = yaml.load(ir.frontmatter) as Record<string, any>;
+    } catch (initialError) {
+      // If parsing fails, try with sanitized frontmatter
+      try {
+        const sanitized = sanitizeYamlFrontmatter(ir.frontmatter);
+        raw = yaml.load(sanitized) as Record<string, any>;
+      } catch (sanitizeError) {
+        // If still failing, throw the original error with context
+        throw new ParseError(
+          `Failed to parse frontmatter: ${initialError instanceof Error ? initialError.message : 'Unknown error'}`
+        );
+      }
+    }
+
+    try {
       // Validate required top-level fields
       if (!raw.name) {
         throw new ParseError('Missing required field: name');

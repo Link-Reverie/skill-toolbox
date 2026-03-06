@@ -27,6 +27,8 @@ npm install @skill-toolbox/core
 # Source adapters (install as needed)
 npm install @skill-toolbox/git-source
 npm install @skill-toolbox/filesystem-source
+npm install @skill-toolbox/discovery-source
+npm install @skill-toolbox/http-source
 
 # Plugins
 npm install @skill-toolbox/plugin-metadata
@@ -69,18 +71,56 @@ for (const skill of skills) {
 }
 ```
 
+### Auto-Discovery
+
+Automatically discover skills from `.claude/skills` and `.agents/skills` directories (OpenCode compatible):
+
+```typescript
+import { SkillLoader } from '@skill-toolbox/core';
+import { DiscoverySource } from '@skill-toolbox/discovery-source';
+import { HttpSource } from '@skill-toolbox/http-source';
+
+// Discover skills from project and global directories
+const discoverySource = new DiscoverySource({
+  projectDir: process.cwd(),
+  externalDirs: ['.claude', '.agents'],  // Default
+  includeGlobal: true,                    // ~/.claude/skills, ~/.agents/skills
+  includeProject: true,                   // Walk up from projectDir
+});
+
+// Load skills from remote URL
+const httpSource = new HttpSource({
+  url: 'https://example.com/.well-known/skills/',
+  cacheDir: '~/.cache/skill-toolbox/http',
+});
+
+const loader = new SkillLoader({
+  sources: [discoverySource, httpSource],
+});
+
+const { skills } = await loader.loadAll();
+```
+
+**Discovery Priority:** Project-level skills override global skills when names conflict.
+
 ### Using with AI Agents
 
 ```typescript
 import { SkillLoader } from '@skill-toolbox/core';
 import { createSources } from '@skill-toolbox/core/factory';
+import { FilesystemSource } from '@skill-toolbox/filesystem-source';
+import { GitSource } from '@skill-toolbox/git-source';
+import { DiscoverySource } from '@skill-toolbox/discovery-source';
+import { HttpSource } from '@skill-toolbox/http-source';
 import anthropic from '@anthropic-ai/sdk';
 
 // Configure sources
 const sources = createSources([
   { type: 'filesystem', path: './skills' },
-  { type: 'git', url: 'ComposioHQ/awesome-claude-skills' }
-]);
+  { type: 'git', source: 'user/skill-repo' },
+  { type: 'discovery', projectDir: process.cwd() },
+  { type: 'http', url: 'https://example.com/.well-known/skills/' },
+], { FilesystemSource, GitSource, DiscoverySource, HttpSource });
 
 const loader = new SkillLoader({ sources });
 const { skills } = await loader.loadAll();
@@ -114,14 +154,15 @@ const response = await client.messages.create({
 │  - Handles errors gracefully                                │
 └─────────────────────────────────────────────────────────────┘
                               │
-              ┌───────────────┼───────────────┐
-              ▼               ▼               ▼
-┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-│ FilesystemSource│ │   GitSource     │ │  Custom Source  │
-│   (local dir)   │ │  (git clone)    │ │   (your impl)   │
-└─────────────────┘ └─────────────────┘ └─────────────────┘
-              │               │               │
-              └───────────────┼───────────────┘
+        ┌─────────┬───────────┼───────────┬─────────┐
+        ▼         ▼           ▼           ▼         ▼
+┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+│Filesystem│ │   Git    │ │Discovery │ │   HTTP   │ │  Custom  │
+│  Source  │ │  Source  │ │  Source  │ │  Source  │ │  Source  │
+│(local)   │ │  (clone) │ │(auto)    │ │ (remote) │ │ (custom) │
+└──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘
+        │         │           │           │         │
+        └─────────┴───────────┼───────────┴─────────┘
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                      SkillParser                            │
@@ -156,6 +197,8 @@ const response = await client.messages.create({
 | `@skill-toolbox/utils` | Shared types (`Skill`, `SkillIR`, `SkillMetadata`, etc.) |
 | `@skill-toolbox/git-source` | Load skills from Git repositories |
 | `@skill-toolbox/filesystem-source` | Load skills from local filesystem |
+| `@skill-toolbox/discovery-source` | Auto-discover skills from `.claude` and `.agents` directories |
+| `@skill-toolbox/http-source` | Load skills from remote HTTP URLs |
 | `@skill-toolbox/plugin-metadata` | Parse YAML frontmatter in skill files |
 | `@skill-toolbox/cli` | Command-line tool for skill management |
 | `@skill-toolbox/agent` | Example AI agent application |

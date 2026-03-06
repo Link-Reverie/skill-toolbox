@@ -7,6 +7,8 @@ import { ToolRegistry } from './tools/registry';
 import { createReadTool } from './tools/read';
 import { createWriteTool } from './tools/write';
 import { createBashTool } from './tools/bash';
+import { createSearchSkillsTool } from './tools/search-skills';
+import { createGetSkillTool } from './tools/get-skill';
 import { LLMClient, Message } from './llm/client';
 import type { Skill } from '@skill-toolbox/utils';
 import type { Tool } from './tools/types';
@@ -34,7 +36,13 @@ export class Agent {
       config.maxTokens,
       config.baseURL
     );
-    this.skillLoader = new SkillLoader(config.skillsDir);
+    this.skillLoader = new SkillLoader({
+      skillsDir: config.skillsDir,
+      enableDiscovery: config.enableDiscovery,
+      enableHttp: config.enableHttp,
+      httpUrls: config.httpUrls,
+      projectDir: config.projectDir,
+    });
   }
 
   /**
@@ -127,19 +135,22 @@ export class Agent {
   }
 
   private registerTools(): void {
-    // Register read tool
+    // Register skill tools (search + get)
+    const searchSkillsTool = createSearchSkillsTool(this.skillLoader);
+    this.toolRegistry.register(searchSkillsTool.tool, searchSkillsTool.executor);
+
+    const getSkillTool = createGetSkillTool(this.skillLoader);
+    this.toolRegistry.register(getSkillTool.tool, getSkillTool.executor);
+
+    // Register file tools (read + write)
     const readTool = createReadTool();
     this.toolRegistry.register(readTool.tool, readTool.executor);
 
-    // Register write tool
     const writeTool = createWriteTool();
     this.toolRegistry.register(writeTool.tool, writeTool.executor);
 
-    // Register bash tool with sandbox config
-    const bashTool = createBashTool({
-      allowedCommands: this.config.sandbox.allowedCommands,
-      timeout: this.config.sandbox.timeout,
-    });
+    // Register bash tool with three-layer sandbox
+    const bashTool = createBashTool(this.config.sandbox);
     this.toolRegistry.register(bashTool.tool, bashTool.executor);
   }
 
