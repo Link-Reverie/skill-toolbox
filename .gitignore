@@ -12,3 +12,6 @@ dist
 coverage
 .npmrc.backup
 .claude
+CLAUDE.md
+AGENTS.md
+.gitnexus
